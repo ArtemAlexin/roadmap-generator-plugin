@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.0.2
+
+- Keep every intake question interactive: native MCP forms continue sequentially until completion/cancellation; clients without MCP forms are explicitly routed to the host question UI for each question.
+- Resume after cancellation and retry invalid answers in forms; expose an explicit next-tool action in session summaries.
+- Offer an interactive local website ZIP, PDF or both; HTML never means a single standalone document.
+- Return explicit delivery contracts and actual website/archive/PDF paths from builds.
+- Add regression coverage for the full eight-question flow, resume/retry, UI guidance and multi-page archive contents.
+
 ## 0.0.1
 
 First tagged GitHub release.

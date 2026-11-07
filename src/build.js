@@ -7,7 +7,7 @@ import AdmZip from 'adm-zip';
 import { renderSite, renderPrint } from './render.js';
 import { launchBrowser } from './browser.js';
 import { contentHash, validateRoadmap, evaluateReview } from './validate.js';
-import { nextQuestion } from './questions.js';
+import { nextQuestion, deliveryFor } from './questions.js';
 import { writeJson } from './files.js';
 
 export async function auditSite(directory,roadmap,{ screenshotsDirectory }={}) {
@@ -90,7 +90,8 @@ export async function buildRoadmap(state,{ visualAudit=true }={}) {
       }finally{await browser.close();}
     }
     await writeJson(path.join(output,'roadmap.json'),state.roadmap);
-    const manifest={ contentHash:hash,schemaVersion:'1.0',format:state.answers.format,preliminary,
+    const manifest={ contentHash:hash,schemaVersion:'1.0',format:state.answers.format,delivery:deliveryFor(state.answers.format),
+      artifacts:{...(wantHtml?{siteDirectory:path.join(output,'site'),htmlArchive:path.join(output,'roadmap-html.zip'),siteEntryPoint:path.join(output,'site/index.html')}:{}),...(wantPdf?{pdf:path.join(output,'roadmap.pdf')}:{})},preliminary,
       evaluation:evaluation?{total:evaluation.total,passed:evaluation.passed,blockers:evaluation.blockers}:null,
       validation,audit,pdfCreated:wantPdf,visualReview:'pending-agent-review',createdAt:new Date().toISOString() };
     await writeJson(path.join(output,'manifest.json'),manifest);

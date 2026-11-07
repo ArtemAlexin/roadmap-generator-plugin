@@ -14,10 +14,14 @@ test('export both formats, ZIP extraction, snapshot parity and preliminary marki
     const state={id:'export-test',answers:inputs,roadmap,review:null};
     const result=await buildRoadmap(state,{visualAudit:false});
     expect(result.preliminary).toBe(true);expect(result.audit.passed).toBe(true);expect(result.contentHash).toBe(contentHash(roadmap,inputs));
+    expect(result.delivery.website.singleHtmlFile).toBe(false);
+    expect(result.artifacts.htmlArchive).toBe(path.join(result.outputDirectory,'roadmap-html.zip'));
+    expect(result.artifacts.siteEntryPoint).toBe(path.join(result.outputDirectory,'site/index.html'));
     const pdf=await fs.readFile(path.join(result.outputDirectory,'roadmap.pdf'));expect(pdf.subarray(0,5).toString()).toBe('%PDF-');expect(pdf.length).toBeGreaterThan(10000);
     const snapshot=JSON.parse(await fs.readFile(path.join(result.outputDirectory,'roadmap.json'),'utf8'));expect(snapshot).toEqual(roadmap);
     const zip=new AdmZip(path.join(result.outputDirectory,'roadmap-html.zip'));
     expect(zip.getEntries().some(e=>e.entryName==='index.html')).toBe(true);
+    for(const entry of ['assets/app.js','assets/data.js','assets/theme.js','assets/app.css','about.html','report.html',...roadmap.stages.map(s=>`stages/${s.id}.html`)])expect(zip.getEntry(entry)).not.toBeNull();
     const extracted=path.join(directory,'extracted');zip.extractAllTo(extracted);
     expect((await auditSite(extracted,roadmap)).passed).toBe(true);
     inputs.format='pdf';const pdfOnly=await buildRoadmap(state,{visualAudit:false});

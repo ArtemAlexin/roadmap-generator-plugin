@@ -1,6 +1,6 @@
 # Delivery
 
-Use roadmap_build for the chosen format: html, pdf or both. Do not generate code/templates again. Each build creates a fresh directory under the user's chosen absolute destination and never overwrites an earlier build.
+Use roadmap_build for the chosen format: html, pdf or both. Present these choices to the user as “Интерактивный локальный сайт (ZIP)”, “PDF-документ”, “Интерактивный сайт (ZIP) и PDF”. Internal html always means the multi-page interactive site; do not offer a single HTML file as a substitute. Do not generate code/templates again. Each build creates a fresh directory under the user's chosen absolute destination and never overwrites an earlier build. Return the actual paths in artifacts.htmlArchive/siteEntryPoint/pdf as applicable, not a manually authored file.
 
 HTML: site/index.html plus complete stage pages, about.html and report.html; roadmap-html.zip is the distributable archive. Local CSS/JS, no CDN, fetch/XHR or ES modules; opens via file:// after extraction. Search, status/query highlighting, DAG, zoom, drag, keyboard controls, themes and local progress are presentation only. Links to learning materials require internet. Stages remain complete and all seven blocks are visible.
 

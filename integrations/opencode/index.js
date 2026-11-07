@@ -42,7 +42,7 @@ export default {
           if(!sameEntry)throw new Error(`MCP-сервер ${serverName} уже занят другим подключением. Выберите serverName в опциях Roadmap Generator.`);
           return; // Preserve explicit disabled, environment, command and timeout choices.
         }
-        editor.set(serverName,{type:'local',command,cwd:root,protocol:'legacy',timeout:{startup:30000,catalog:30000,execution:300000}});
+        editor.set(serverName,{type:'local',command,cwd:root,protocol:'legacy',timeout:{startup:30000,catalog:30000,execution:1800000}});
       }));
       registrations.push(await ctx.skill.transform(editor=>{
         const existing=editor.get('roadmap');
@@ -57,7 +57,8 @@ export default {
           async execute({sessionID,prompt,delivery}){
             await ctx.session.prompt({...prompt,sessionID,delivery,text:[
               `Используй навык roadmap и MCP-сервер ${serverName}. Сначала прочитай roadmap_guidance с phase=workflow.`,
-              'Создай или продолжи персональную программу по исходной цели пользователя. Задавай только недостающие вопросы по одному; используй интерактивный вопрос с возможностью своего ответа. Дай выбрать HTML, PDF или оба формата и папку сохранения.',
+              'Создай или продолжи персональную программу по исходной цели пользователя. Каждый недостающий вопрос задавай интерактивно, по одному, включая все вопросы после первого. Вызывай roadmap_question до inputComplete=true; при mode=host-ui используй инструмент интерактивного вопроса OpenCode для каждого вопроса, сохраняй ответ через roadmap_answer и снова вызывай roadmap_question. Не превращай nextQuestion из состояния в обычный вопрос текстом в чате.',
+              'Предложи ровно три варианта результата: «Интерактивный локальный сайт (ZIP)», «PDF-документ», «Интерактивный сайт (ZIP) и PDF». Внутренний format=html — полноценный многостраничный локальный сайт с картой, страницами этапов, поиском, темами и прогрессом. Не предлагай один HTML-файл. Спроси папку сохранения и используй roadmap_build.',
               'Исследуй обязательные источники средствами поиска/чтения. Для рецензирования используй отдельный чистый контекст; не подменяй его самооценкой. Если это недоступно, явно обозначь предварительный статус. Не генерируй заново код представления.',
               prompt?.text?`Запрос пользователя:\n${prompt.text}`:'Если цель ещё не задана, начни с вопроса о цели.'
             ].join('\n\n')});

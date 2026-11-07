@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fixture, reviewFixture } from './fixture.js';
 import { validateRoadmap,evaluateReview,contentHash,topological } from '../src/validate.js';
-import { nextQuestion, validateAnswer } from '../src/questions.js';
+import { nextQuestion, validateAnswer,deliveryFor,formatLabels } from '../src/questions.js';
 import { Store } from '../src/store.js';
 import { md,graphLayout,renderPrint } from '../src/render.js';
 
@@ -44,6 +44,13 @@ test('intake asks one pending question, skips known goal and accepts custom answ
   assert.equal(validateAnswer('constraints','Мой собственный ответ'),'Мой собственный ответ');
   assert.equal(validateAnswer('hoursPerWeek','2,5'),2.5);
   assert.throws(()=>validateAnswer('hoursPerWeek',0));assert.throws(()=>validateAnswer('format','docx'));assert.throws(()=>validateAnswer('outputDirectory','relative'));
+});
+test('delivery options distinguish the interactive website ZIP from the PDF document',()=>{
+  assert.equal(formatLabels.length,3);assert.match(formatLabels[0],/локальный сайт \(ZIP\)/);
+  const site=deliveryFor('html');assert.equal(site.website.singleHtmlFile,false);assert.equal(site.pdf,undefined);
+  const pdf=deliveryFor('pdf');assert.equal(pdf.website,undefined);assert.equal(pdf.pdf.file,'roadmap.pdf');
+  const both=deliveryFor('both');assert.ok(both.website);assert.ok(both.pdf);assert.equal(deliveryFor('single-html'),null);
+  assert.equal(validateAnswer('format',formatLabels[0]),'html');assert.equal(validateAnswer('format',formatLabels[2]),'both');
 });
 test('persistent sessions serialize updates, resume and sanitize reviewer packets',async()=>{
   const dir=await fs.mkdtemp(path.join(os.tmpdir(),'roadmap-store-test-'));

@@ -7,6 +7,8 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { ElicitRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import { root } from '../src/store.js';
+import { fixture } from './fixture.js';
+import { formatLabels } from '../src/questions.js';
 
 async function connected(capabilities={}){
   const dir=await fs.mkdtemp(path.join(os.tmpdir(),'roadmap-mcp-test-'));
@@ -20,14 +22,17 @@ const call=async(client,name,args={})=>{
   if(result.isError)throw new Error(result.content[0].text);
   return JSON.parse(result.content[0].text);
 };
-test('real stdio handshake, discovery, prompt and chat fallback',async()=>{
+test('real stdio handshake, discovery, prompt and explicit host-UI fallback',async()=>{
   const c=await connected();try{
     const tools=await c.client.listTools();assert.ok(tools.tools.some(t=>t.name==='roadmap_build'));
     assert.equal((await c.client.listPrompts()).prompts[0].name,'create-roadmap');
     const prompt=await c.client.getPrompt({name:'create-roadmap'});assert.ok(prompt.messages[0].content.text.includes('roadmap_question'));
     const start=await call(c.client,'roadmap_start',{knownInputs:{goal:'My exact goal'}});
-    const next=await call(c.client,'roadmap_question',{sessionId:start.sessionId});assert.equal(next.mode,'chat');assert.equal(next.question.key,'level');
-    await call(c.client,'roadmap_answer',{sessionId:start.sessionId,key:'level',value:'Custom experience'});
+    const next=await call(c.client,'roadmap_question',{sessionId:start.sessionId});assert.equal(next.mode,'host-ui');assert.equal(next.question.key,'level');
+    assert.equal(next.afterAnswer.then,'roadmap_question');
+    const saved=await call(c.client,'roadmap_answer',{sessionId:start.sessionId,key:'level',value:'Custom experience'});
+    assert.equal(saved.nextAction.tool,'roadmap_question');
+    const second=await call(c.client,'roadmap_question',{sessionId:start.sessionId});assert.equal(second.mode,'host-ui');assert.equal(second.question.key,'hoursPerWeek');
     assert.equal((await call(c.client,'roadmap_get',{sessionId:start.sessionId})).answers.goal,'My exact goal');
     const schema=await call(c.client,'roadmap_schema',{section:'stage'});assert.ok(schema.properties.dod);
     const guidance=await call(c.client,'roadmap_guidance',{phase:'sources'});assert.ok(guidance.text.includes('фактически'));
@@ -40,10 +45,63 @@ test('native MCP elicitation asks one field, cancellation preserves pending ques
       calls++;assert.equal(Object.keys(request.params.requestedSchema.properties).length,1);
       return action==='accept'?{action,content:{answer:'Опыт пользователя'}}:{action};
     });
-    const start=await call(c.client,'roadmap_start',{knownInputs:{goal:'Goal'}});
+    const knownInputs=fixture(c.dir).inputs;delete knownInputs.level;delete knownInputs.hoursPerWeek;
+    const start=await call(c.client,'roadmap_start',{knownInputs});
     const cancelled=await call(c.client,'roadmap_question',{sessionId:start.sessionId});assert.equal(cancelled.pending,true);
     assert.equal((await call(c.client,'roadmap_get',{sessionId:start.sessionId})).nextQuestion.key,'level');
-    action='accept';await call(c.client,'roadmap_question',{sessionId:start.sessionId});
-    assert.equal(calls,2);assert.equal((await call(c.client,'roadmap_get',{sessionId:start.sessionId})).nextQuestion.key,'hoursPerWeek');
+    action='accept';
+    c.client.setRequestHandler(ElicitRequestSchema,async request=>{
+      calls++;return {action:'accept',content:{answer:request.params.requestedSchema.properties.answer.type==='number'?6:'Опыт пользователя'}};
+    });
+    const complete=await call(c.client,'roadmap_question',{sessionId:start.sessionId});
+    assert.equal(calls,3);assert.equal(complete.complete,true);assert.equal(complete.inputComplete,true);assert.equal(complete.nextQuestion,null);
+  }finally{await c.close();}
+});
+
+test('one native intake call asks all eight questions interactively and describes a ZIP website',async()=>{
+  const c=await connected({elicitation:{form:{}}});try{
+    const answers=['Моя цель','Мой опыт',4,'Без срока','Ограничений нет','Без приоритетов',formatLabels[0],c.dir];
+    let index=0;
+    c.client.setRequestHandler(ElicitRequestSchema,async request=>{
+      assert.equal(Object.keys(request.params.requestedSchema.properties).length,1);
+      if(index===6){
+        assert.deepEqual(request.params.requestedSchema.properties.answer.enum,formatLabels);
+        assert.match(request.params.message,/ZIP/);assert.match(request.params.message,/отдельными страницами/);
+      }
+      return {action:'accept',content:{answer:answers[index++]}};
+    });
+    const start=await call(c.client,'roadmap_start');
+    const result=await call(c.client,'roadmap_question',{sessionId:start.sessionId});
+    assert.equal(index,8);assert.equal(result.complete,true);assert.equal(result.answers.format,'html');
+    assert.equal(result.delivery.website.kind,'interactive-local-website');assert.equal(result.delivery.website.singleHtmlFile,false);
+    assert.equal(result.delivery.website.archive,'roadmap-html.zip');assert.equal(result.nextAction,null);
+    await call(c.client,'roadmap_question',{sessionId:start.sessionId});assert.equal(index,8);
+  }finally{await c.close();}
+});
+
+test('native intake cancelled after first answer resumes forms for the remaining questions',async()=>{
+  const c=await connected({elicitation:{form:{}}});try{
+    let count=0;
+    c.client.setRequestHandler(ElicitRequestSchema,async()=>++count===1?{action:'accept',content:{answer:'Сохранённая цель'}}:{action:'cancel'});
+    const start=await call(c.client,'roadmap_start');
+    const stopped=await call(c.client,'roadmap_question',{sessionId:start.sessionId});
+    assert.equal(stopped.question.key,'level');assert.equal(stopped.pending,true);
+    const saved=await call(c.client,'roadmap_get',{sessionId:start.sessionId});assert.equal(saved.answers.goal,'Сохранённая цель');assert.equal(saved.answers.level,undefined);
+    const answers=['Опыт',2,'Без срока','Нет','Нет',formatLabels[2],c.dir];let index=0;
+    c.client.setRequestHandler(ElicitRequestSchema,async()=>({action:'accept',content:{answer:answers[index++]}}));
+    const result=await call(c.client,'roadmap_question',{sessionId:start.sessionId});
+    assert.equal(index,7);assert.equal(result.inputComplete,true);assert.equal(result.answers.goal,'Сохранённая цель');assert.equal(result.answers.format,'both');
+  }finally{await c.close();}
+});
+
+test('invalid native answer is retried in a form and does not switch to chat',async()=>{
+  const c=await connected({elicitation:{form:{}}});try{
+    const knownInputs=fixture(c.dir).inputs;delete knownInputs.outputDirectory;let count=0;
+    c.client.setRequestHandler(ElicitRequestSchema,async request=>{
+      count++;if(count===2)assert.match(request.params.message,/абсолютный путь/);
+      return {action:'accept',content:{answer:count===1?'relative-folder':c.dir}};
+    });
+    const start=await call(c.client,'roadmap_start',{knownInputs});const result=await call(c.client,'roadmap_question',{sessionId:start.sessionId});
+    assert.equal(count,2);assert.equal(result.complete,true);assert.equal(result.answers.outputDirectory,c.dir);
   }finally{await c.close();}
 });

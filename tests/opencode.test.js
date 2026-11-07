@@ -34,6 +34,8 @@ test('OpenCode /roadmap preserves user prompt, attachments, session and delivery
   await h.commands.get('roadmap').execute({sessionID:'session-1',prompt:{text:'Научиться анализировать данные',files,skills:['existing']},delivery:'queue'});
   const request=h.prompts[0];assert.equal(request.sessionID,'session-1');assert.equal(request.delivery,'queue');assert.deepEqual(request.files,files);assert.deepEqual(request.skills,['existing']);
   assert.ok(request.text.includes('Научиться анализировать данные'));assert.ok(request.text.includes('чистый контекст'));
+  assert.ok(request.text.includes('включая все вопросы после первого'));assert.ok(request.text.includes('mode=host-ui'));
+  assert.ok(request.text.includes('Интерактивный локальный сайт (ZIP)'));assert.ok(request.text.includes('roadmap_build'));
 });
 test('OpenCode preserves existing matching server config and rolls back on skill conflict',async()=>{
   const existing={type:'local',command:['node',path.join(root,'src/server.js')],disabled:true,environment:{EXAMPLE:'value'}};
