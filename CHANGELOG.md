@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.0.4
+
+- Add PowerShell and POSIX sh installers for a complete local Codex plugin.
+- Install locked runtime dependencies in the actual Codex plugin cache.
+- Verify MCP handshake, tool discovery, workflow guidance and browser launch; install Chromium when needed.
+- Document local installation, browser options and duplicate MCP cleanup.
+- Update adm-zip and zod dependencies.
+- Preserve LF line endings for shell scripts.
+
 ## 0.0.3
 
 - Separate self-paced effort estimates from personal weekly scheduling.

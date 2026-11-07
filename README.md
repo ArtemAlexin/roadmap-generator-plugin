@@ -4,32 +4,43 @@
 
 Модель создаёт и проверяет учебное содержание. Готовый код хранит состояние, проверяет структуру и собирает файлы. API-ключей и отдельных платных вызовов моделей нет. Независимого проверяющего запускает агент-хост или пользователь в другой сессии.
 
-## Версия 0.0.3: установка из GitHub
+## Версия 0.0.4: установка из GitHub
 
 ### OpenCode 2.2.5
 
 ```powershell
-opencode plugin add "github:ArtemAlexin/roadmap-generator-plugin#0.0.3"
+opencode plugin add "github:ArtemAlexin/roadmap-generator-plugin#0.0.4"
 ```
 
 Перезапустите OpenCode и введите в чате `/roadmap Ваша цель`. OpenCode устанавливает Git-пакет и его npm-зависимости. Нужен Node.js 22+; для HTML QA/PDF — установленный Edge/Chrome либо Chromium. Глобальную запись с локальным file:// путём следует заменить Git-версией, чтобы не подключать две копии одного плагина.
 
-### Codex: собственный каталог плагинов
+### Codex: локальная установка
 
-Репозиторий содержит `.agents/plugins/marketplace.json`. Добавить источник версии:
-
-```powershell
-codex plugin marketplace add ArtemAlexin/roadmap-generator-plugin --ref 0.0.3
-```
-
-Затем установите Roadmap Generator через каталог плагинов приложения. Этот локальный MCP-сервер требует npm-зависимости в используемой копии пакета: Git-тег и каталог сами по себе не гарантируют их автоматическую установку. Для предсказуемой установки сначала клонируйте репозиторий, установите зависимости и подключите локальный каталог:
+Скачайте текущий репозиторий (через Git или ZIP) и запустите локальный установщик. Нужны Node.js 22+, npm и актуальный Codex CLI с командой `codex plugin add`. Команды для PowerShell:
 
 ```powershell
-git clone --branch 0.0.3 https://github.com/ArtemAlexin/roadmap-generator-plugin.git
+git clone --branch 0.0.4 https://github.com/ArtemAlexin/roadmap-generator-plugin.git
 cd roadmap-generator-plugin
-npm ci
-codex plugin marketplace add .
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install-codex.ps1
 ```
+
+Для Linux/macOS используйте `sh`:
+
+```sh
+git clone --branch 0.0.4 https://github.com/ArtemAlexin/roadmap-generator-plugin.git
+cd roadmap-generator-plugin
+sh scripts/install-codex.sh
+```
+
+Если скачали ZIP, распакуйте его и выполните последнюю команду из папки с `package.json`. Установщик добавляет локальный каталог `roadmap-tools`, устанавливает плагин `roadmap-generator`, получает от Codex фактический путь установленной копии и выполняет `npm ci --omit=dev` именно в ней. Затем проверяет MCP handshake, список инструментов и чтение workflow. Для HTML/PDF проверяет запуск браузера; если доступного Edge/Chrome/Chromium нет, устанавливает Chromium. При первой установке нужен доступ к npm registry и, при загрузке браузера, к серверам Playwright. `npm ci` в исходном клоне перед запуском установщика не требуется.
+
+Перезапустите Codex и откройте новый чат. Плагин предоставляет навык `roadmap` и MCP-инструменты. Проверка в чате:
+
+> Используй навык roadmap. Сначала вызови roadmap_guidance с phase=workflow, затем помоги создать учебную программу.
+
+Если ранее добавляли отдельный MCP-сервер командой `codex mcp add roadmap`, удалите эту отдельную запись через `codex mcp remove roadmap`, чтобы не подключать сервер дважды. Сам плагин оставьте включённым.
+
+При обновлении локального репозитория повторите запуск установщика и перезапустите Codex. Не редактируйте кэш плагинов вручную. Параметр `-SkipBrowser` (PowerShell) или `--skip-browser` (`sh`) пропускает проверку и установку браузера; тогда HTML QA/PDF потребуют доступного браузера позднее. В Linux для Chromium также могут понадобиться системные библиотеки Playwright; установите их через пакетный менеджер своей ОС, если проверка браузера сообщает об их отсутствии. Не используйте старый тег `0.0.3` для получения установщика: он добавлен после этого тега.
 
 Это собственный Git-каталог, а не публикация в общем публичном каталоге OpenAI. В опубликованном Git-пакете сохранён `private: true`: релиз распространяется из GitHub, в npm registry он не публикуется.
 
@@ -64,16 +75,40 @@ node src/cli.js config
 
 Поддержка ограничена агентами с локальным выполнением и MCP stdio. Чисто облачным агентам без локального исполнителя понадобится отдельный HTTP-адаптер/развёртывание; в этой версии его нет. Варианты пользовательского UI, разрешений и запуска субагентов определяются клиентом.
 
-## Codex: подключение через MCP
+## Codex: альтернативное подключение только через MCP
 
-Из PowerShell:
+Нужны Git, Node.js 22+, npm и установленный Codex CLI. Выполняйте команды в PowerShell. Если репозиторий уже клонирован, перейдите в его папку и пропустите `git clone`.
 
 ```powershell
-codex mcp add roadmap -- node "C:\path\to\roadmap-generator-plugin\src\server.js"
+git clone --branch 0.0.4 https://github.com/ArtemAlexin/roadmap-generator-plugin.git
+cd roadmap-generator-plugin
+npm ci
+
+# Абсолютные пути сохранятся в конфигурации Codex.
+$roadmapRoot = (Get-Location).Path
+$roadmapNode = (Get-Command node -CommandType Application).Source
+codex mcp add roadmap -- "$roadmapNode" "$roadmapRoot\src\server.js"
+codex mcp get roadmap
 codex mcp list
 ```
 
-После подключения откройте новый чат и используйте вводную команду выше. При необходимости установите увеличенный таймаут для сборки в конфигурации клиента: например, `tool_timeout_sec = 300` в `[mcp_servers.roadmap]` у Codex. Пример команды соответствует [официальной документации MCP](https://developers.openai.com/codex/mcp).
+Этот способ нужен для отдельного MCP-сервера без установки плагина. Если Roadmap Generator уже установлен через установщик выше, используйте его либо отключите плагин перед прямым подключением, чтобы избежать двойного подключения. Прямое MCP-подключение регистрирует инструменты и prompt сервера; оно само по себе не устанавливает навык плагина или команду `/roadmap`.
+
+Для HTML QA и PDF нужен браузер. При установленном Edge или Chrome отдельная установка не требуется. Иначе из папки репозитория выполните:
+
+```powershell
+npx playwright install chromium
+```
+
+Для длительной сборки добавьте `tool_timeout_sec = 300` в существующую секцию `[mcp_servers.roadmap]` файла `%USERPROFILE%\.codex\config.toml`. Не создавайте вторую секцию с тем же именем.
+
+Перезапустите Codex и откройте новый чат. `codex mcp list` проверяет наличие записи в конфигурации; работоспособность проверьте в чате:
+
+> Вызови MCP roadmap_guidance с phase=workflow и подтверди, что инструкция прочитана.
+
+Затем используйте вводную команду из раздела выше. Сервер запускает сам Codex; отдельно выполнять `npm start` не нужно. Синтаксис подключения описан в [официальной документации MCP](https://learn.chatgpt.com/docs/extend/mcp).
+
+Не перемещайте и не удаляйте локальный клон: Codex запускает сервер из него. После обновления кода выполните `npm ci` в этой же папке и перезапустите Codex. Если путь изменился, удалите старую запись командой `codex mcp remove roadmap` и повторите подключение с новым абсолютным путём. При `ERR_MODULE_NOT_FOUND` проверьте путь через `codex mcp get roadmap` и установите зависимости именно в указанном клоне.
 
 ## OpenCode: нативный плагин
 
