@@ -13,7 +13,7 @@ import { buildRoadmap } from './build.js';
 const guidanceFiles={ workflow:'SKILL.md',curriculum:'references/curriculum.md',sources:'references/sources.md',review:'references/review.md',rubric:'references/rubric.md',delivery:'references/delivery.md',data:'references/data.md' };
 export function createServer({dataDirectory=defaultDataDirectory()}={}){
   const store=new Store(dataDirectory);
-  const server=new McpServer({name:'roadmap-generator',version:'0.1.0'},{instructions:'Use roadmap_guidance(workflow) for roadmap requests. Ask one unanswered question at a time. This server supplies state and rendering, not an LLM or a browser research service. Use host research tools and a separate reviewer. Never fabricate verification.'});
+  const server=new McpServer({name:'roadmap-generator',version:'0.0.1'},{instructions:'Use roadmap_guidance(workflow) for roadmap requests. Ask one unanswered question at a time. This server supplies state and rendering, not an LLM or a browser research service. Use host research tools and a separate reviewer. Never fabricate verification.'});
   const reply=value=>({content:[{type:'text',text:JSON.stringify(value,null,2)}]});
   const register=(name,description,inputSchema,handler)=>server.registerTool(name,{description,inputSchema,annotations:{readOnlyHint:['roadmap_guidance','roadmap_schema','roadmap_get','roadmap_validate'].includes(name),destructiveHint:false,openWorldHint:false}},async args=>{
     try{return reply(await handler(args));}catch(e){return {isError:true,content:[{type:'text',text:e.message}]};}

@@ -4,6 +4,35 @@
 
 Модель создаёт и проверяет учебное содержание. Готовый код хранит состояние, проверяет структуру и собирает файлы. API-ключей и отдельных платных вызовов моделей нет. Независимого проверяющего запускает агент-хост или пользователь в другой сессии.
 
+## Версия 0.0.1: установка из GitHub
+
+### OpenCode 2.2.5
+
+```powershell
+opencode plugin add "github:ArtemAlexin/roadmap-generator-plugin#0.0.1"
+```
+
+Перезапустите OpenCode и введите в чате `/roadmap Ваша цель`. OpenCode устанавливает Git-пакет и его npm-зависимости. Нужен Node.js 22+; для HTML QA/PDF — установленный Edge/Chrome либо Chromium. Глобальную запись с локальным file:// путём следует заменить Git-версией, чтобы не подключать две копии одного плагина.
+
+### Codex: собственный каталог плагинов
+
+Репозиторий содержит `.agents/plugins/marketplace.json`. Добавить источник версии:
+
+```powershell
+codex plugin marketplace add ArtemAlexin/roadmap-generator-plugin --ref 0.0.1
+```
+
+Затем установите Roadmap Generator через каталог плагинов приложения. Этот локальный MCP-сервер требует npm-зависимости в используемой копии пакета: Git-тег и каталог сами по себе не гарантируют их автоматическую установку. Для предсказуемой установки сначала клонируйте репозиторий, установите зависимости и подключите локальный каталог:
+
+```powershell
+git clone --branch 0.0.1 https://github.com/ArtemAlexin/roadmap-generator-plugin.git
+cd roadmap-generator-plugin
+npm ci
+codex plugin marketplace add .
+```
+
+Это собственный Git-каталог, а не публикация в общем публичном каталоге OpenAI. В опубликованном Git-пакете сохранён `private: true`: релиз распространяется из GitHub, в npm registry он не публикуется.
+
 ## Установка зависимостей
 
 Нужны Node.js 22+ и npm. Из каталога проекта:
@@ -40,7 +69,7 @@ node src/cli.js config
 Из PowerShell:
 
 ```powershell
-codex mcp add roadmap -- node "C:\Users\artem\IdeaProjects\personal\roadmap-generator-plugin\src\server.js"
+codex mcp add roadmap -- node "C:\path\to\roadmap-generator-plugin\src\server.js"
 codex mcp list
 ```
 
@@ -53,7 +82,7 @@ codex mcp list
 **Быстрый запуск:** в корне уже есть `opencode.json` с автоподключением этого плагина. Откройте проект в OpenCode:
 
 ```powershell
-opencode "C:\Users\artem\IdeaProjects\personal\roadmap-generator-plugin"
+opencode "C:\path\to\roadmap-generator-plugin"
 ```
 
 Затем в чате введите `/roadmap Ваша цель`. Следующие шаги нужны только для подключения из других рабочих проектов.
@@ -70,7 +99,7 @@ node src/cli.js config opencode
 {
   "$schema": "https://opencode.ai/config.json",
   "plugin": [
-    "file:///C:/Users/artem/IdeaProjects/personal/roadmap-generator-plugin/"
+    "file:///C:/path/to/roadmap-generator-plugin/"
   ]
 }
 ```
@@ -111,7 +140,7 @@ npm run test:opencode
 Для Codex-плагина в проекте есть локальный каталог `.agents/plugins/marketplace.json`. Добавьте источник:
 
 ```powershell
-codex plugin marketplace add "C:\Users\artem\IdeaProjects\personal\roadmap-generator-plugin"
+codex plugin marketplace add "C:\path\to\roadmap-generator-plugin"
 ```
 
 Затем откройте каталог плагинов приложения, выберите источник Roadmap Tools и установите Roadmap Generator. Зависимости должны быть установлены в используемой копии пакета. Не подключайте один сервер одновременно через ручной MCP-конфиг и плагин, чтобы избежать двух одинаковых наборов инструментов.
