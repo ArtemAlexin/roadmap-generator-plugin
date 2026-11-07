@@ -1,0 +1,9 @@
+{
+  "name": "roadmap-generator",
+  "version": "0.1.0",
+  "description": "Generate sourced learning roadmaps as offline HTML or PDF",
+  "author": { "name": "Personal roadmap tools" },
+  "skills": "./skills/",
+  "mcpServers": "./.mcp.json",
+  "requires_local_executor": true
+}

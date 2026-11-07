@@ -1,0 +1,7 @@
+node_modules/
+.roadmap-state/
+test-results/
+playwright-report/
+demo-output/
+*.tmp
+.idea

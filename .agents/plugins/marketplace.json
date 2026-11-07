@@ -1,0 +1,11 @@
+{
+  "name": "roadmap-tools",
+  "interface": { "displayName": "Roadmap Tools" },
+  "plugins": [
+    {
+      "name": "roadmap-generator",
+      "source": { "source": "local", "path": "./" },
+      "interface": { "displayName": "Roadmap Generator" }
+    }
+  ]
+}
