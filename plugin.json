@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "roadmap-generator",
-  "version": "0.0.4",
+  "version": "0.0.5",
   "description": "Personalized sourced roadmaps with interactive intake, independent review and reusable HTML/PDF export",
   "extensions": {
     "com.openai": {

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.0.5
+
+- Export site files directly into the roadmap directory, keep the ZIP alongside it and store snapshots, manifests and QA screenshots in the plugin data directory.
+- Return explicit diagnostic paths for agent review without exposing internal files in the delivered site.
+
 ## 0.0.4
 
 - Add PowerShell and POSIX sh installers for a complete local Codex plugin.

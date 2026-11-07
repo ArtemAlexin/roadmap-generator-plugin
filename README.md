@@ -4,12 +4,12 @@
 
 Модель создаёт и проверяет учебное содержание. Готовый код хранит состояние, проверяет структуру и собирает файлы. API-ключей и отдельных платных вызовов моделей нет. Независимого проверяющего запускает агент-хост или пользователь в другой сессии.
 
-## Версия 0.0.4: установка из GitHub
+## Версия 0.0.5: установка из GitHub
 
 ### OpenCode 2.2.5
 
 ```powershell
-opencode plugin add "github:ArtemAlexin/roadmap-generator-plugin#0.0.4"
+opencode plugin add "github:ArtemAlexin/roadmap-generator-plugin#0.0.5"
 ```
 
 Перезапустите OpenCode и введите в чате `/roadmap Ваша цель`. OpenCode устанавливает Git-пакет и его npm-зависимости. Нужен Node.js 22+; для HTML QA/PDF — установленный Edge/Chrome либо Chromium. Глобальную запись с локальным file:// путём следует заменить Git-версией, чтобы не подключать две копии одного плагина.
@@ -19,7 +19,7 @@ opencode plugin add "github:ArtemAlexin/roadmap-generator-plugin#0.0.4"
 Скачайте текущий репозиторий (через Git или ZIP) и запустите локальный установщик. Нужны Node.js 22+, npm и актуальный Codex CLI с командой `codex plugin add`. Команды для PowerShell:
 
 ```powershell
-git clone --branch 0.0.4 https://github.com/ArtemAlexin/roadmap-generator-plugin.git
+git clone --branch 0.0.5 https://github.com/ArtemAlexin/roadmap-generator-plugin.git
 cd roadmap-generator-plugin
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install-codex.ps1
 ```
@@ -27,7 +27,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install-codex.ps1
 Для Linux/macOS используйте `sh`:
 
 ```sh
-git clone --branch 0.0.4 https://github.com/ArtemAlexin/roadmap-generator-plugin.git
+git clone --branch 0.0.5 https://github.com/ArtemAlexin/roadmap-generator-plugin.git
 cd roadmap-generator-plugin
 sh scripts/install-codex.sh
 ```
@@ -80,7 +80,7 @@ node src/cli.js config
 Нужны Git, Node.js 22+, npm и установленный Codex CLI. Выполняйте команды в PowerShell. Если репозиторий уже клонирован, перейдите в его папку и пропустите `git clone`.
 
 ```powershell
-git clone --branch 0.0.4 https://github.com/ArtemAlexin/roadmap-generator-plugin.git
+git clone --branch 0.0.5 https://github.com/ArtemAlexin/roadmap-generator-plugin.git
 cd roadmap-generator-plugin
 npm ci
 
@@ -192,13 +192,16 @@ codex plugin marketplace add "C:\path\to\roadmap-generator-plugin"
 
 ```text
 roadmap-<session>-<build>/
-  site/                 # При выборе HTML
-  roadmap-html.zip      # Открывать после распаковки
+  index.html            # Открыть в браузере при выборе HTML
+  about.html
+  report.html
+  assets/
+  stages/
   roadmap.pdf           # При выборе PDF
-  roadmap.json          # Единая содержательная версия
-  manifest.json         # Хеш, статусы и фактические машинные проверки
-  qa/                   # Снимки для визуальной проверки HTML
+roadmap-<session>-<build>-html.zip  # Архив сайта рядом с каталогом, при выборе HTML
 ```
+
+В режиме PDF в каталоге результата находится только `roadmap.pdf`. Служебные `roadmap.json`, `manifest.json` и снимки `qa/` сохраняются отдельно в каталоге данных плагина `builds/<roadmap-directory>/`. Фактические пути доступны в `diagnostics` результата `roadmap_build`; пользовательский каталог сайта содержит только файлы сайта и выбранный PDF.
 
 HTML работает по file:// без CDN и сервера; интернет нужен для внешних учебных материалов. Поиск, DAG, масштабирование, темы, отметки этапов/DoD и импорт/экспорт прогресса работают локально. Отметки не меняют оценку программы. Хранение localStorage по file:// зависит от браузера; при его недоступности приложение продолжает работать.
 

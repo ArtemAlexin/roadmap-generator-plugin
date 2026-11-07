@@ -2,18 +2,12 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
-import os from 'node:os';
+export { defaultDataDirectory } from './data-directory.js';
 import { readJson, writeJson, safeId } from './files.js';
 import { nextQuestion, validateAnswer, deliveryFor,planningFor } from './questions.js';
 import { contentHash, validateRoadmap, evaluateReview } from './validate.js';
 
 export const root = fileURLToPath(new URL('../', import.meta.url));
-export function defaultDataDirectory() {
-  if (process.env.ROADMAP_DATA_DIR) return process.env.ROADMAP_DATA_DIR;
-  const pluginData=process.env.PLUGIN_DATA||process.env.CLAUDE_PLUGIN_DATA;
-  if (pluginData) return path.join(pluginData,'roadmap-state');
-  return path.join(process.env.LOCALAPPDATA||path.join(os.homedir(),'.local','share'),'roadmap-generator','state');
-}
 export class Store {
   constructor(directory) { this.directory = path.resolve(directory); this.pending = new Map(); }
   file(id) { return path.join(this.directory, `${safeId(id)}.json`); }

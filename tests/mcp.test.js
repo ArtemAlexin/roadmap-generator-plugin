@@ -74,7 +74,7 @@ test('one native intake call asks all weekly-plan questions interactively and de
     const result=await call(c.client,'roadmap_question',{sessionId:start.sessionId});
     assert.equal(index,9);assert.equal(result.complete,true);assert.equal(result.answers.format,'html');
     assert.equal(result.delivery.website.kind,'interactive-local-website');assert.equal(result.delivery.website.singleHtmlFile,false);
-    assert.equal(result.delivery.website.archive,'roadmap-html.zip');assert.equal(result.nextAction,null);
+    assert.equal(result.delivery.website.archive,'<roadmap-directory>-html.zip');assert.equal(result.nextAction,null);
     await call(c.client,'roadmap_question',{sessionId:start.sessionId});assert.equal(index,9);
   }finally{await c.close();}
 });

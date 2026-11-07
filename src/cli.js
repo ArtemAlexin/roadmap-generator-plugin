@@ -37,7 +37,7 @@ try{
   }else if(command==='validate'){
     const result=validateRoadmap(JSON.parse(await fs.readFile(args[0],'utf8')));console.log(JSON.stringify(result,null,2));if(!result.valid)process.exitCode=1;
   }else if(command==='build'){
-    const result=await store.mutate(args[0],async state=>{const r=await buildRoadmap(state);state.builds.push(r);return r;});console.log(JSON.stringify(result,null,2));
+    const result=await store.mutate(args[0],async state=>{const r=await buildRoadmap(state,{diagnosticsRoot:path.join(store.directory,'builds')});state.builds.push(r);return r;});console.log(JSON.stringify(result,null,2));
   }else if(command==='import'){
     // Explicit local import supports agents with filesystem/CLI access instead of MCP.
     const source=JSON.parse(await fs.readFile(args[0],'utf8'));

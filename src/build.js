@@ -9,6 +9,7 @@ import { launchBrowser } from './browser.js';
 import { contentHash, validateRoadmap, evaluateReview } from './validate.js';
 import { nextQuestion, deliveryFor } from './questions.js';
 import { writeJson } from './files.js';
+import { defaultDataDirectory } from './data-directory.js';
 
 export async function auditSite(directory,roadmap,{ screenshotsDirectory }={}) {
   const problems=[], network=[], pageErrors=[];
@@ -55,7 +56,7 @@ export async function auditSite(directory,roadmap,{ screenshotsDirectory }={}) {
       limitation:'Снимки сохранены для визуального просмотра агентом. Автоматическая проверка не подтверждает отсутствие всех визуальных дефектов и полное соответствие WCAG.' };
   }finally{await browser.close();}
 }
-export async function buildRoadmap(state,{ visualAudit=true }={}) {
+export async function buildRoadmap(state,{ visualAudit=true,diagnosticsRoot=path.join(defaultDataDirectory(),'builds') }={}) {
   if(nextQuestion(state.answers))throw new Error('Не завершён опрос: '+nextQuestion(state.answers).title);
   const validation=validateRoadmap(state.roadmap);
   if(!validation.valid)throw new Error('Нельзя собрать программу с ошибками структуры: '+validation.errors.join('; '));
@@ -64,6 +65,7 @@ export async function buildRoadmap(state,{ visualAudit=true }={}) {
   const evaluation=review?evaluateReview(review,state.roadmap,state.answers):null;
   const preliminary=!evaluation?.passed;
   const output=path.join(state.answers.outputDirectory,`roadmap-${state.id.slice(0,8)}-${randomUUID().slice(0,8)}`);
+  const diagnosticsDirectory=path.join(diagnosticsRoot,path.basename(output));
   await fs.mkdir(output,{recursive:true});
   const temp=await fs.mkdtemp(path.join(os.tmpdir(),'roadmap-build-'));
   try{
@@ -72,10 +74,10 @@ export async function buildRoadmap(state,{ visualAudit=true }={}) {
     let audit=null;
     if(wantHtml){
       await renderSite(site,state.roadmap,state.answers,review,evaluation);
-      audit=await auditSite(site,state.roadmap,{screenshotsDirectory:visualAudit?path.join(output,'qa'):undefined});
+      audit=await auditSite(site,state.roadmap,{screenshotsDirectory:visualAudit?path.join(diagnosticsDirectory,'qa'):undefined});
       if(!audit.passed)throw new Error('Техническая проверка HTML: '+audit.problems.join('; '));
-      await fs.cp(site,path.join(output,'site'),{recursive:true});
-      const zip=new AdmZip();zip.addLocalFolder(site);zip.writeZip(path.join(output,'roadmap-html.zip'));
+      await fs.cp(site,output,{recursive:true});
+      const zip=new AdmZip();zip.addLocalFolder(site);zip.writeZip(`${output}-html.zip`);
     }
     if(wantPdf){
       const printFile=path.join(temp,'print.html');
@@ -89,13 +91,14 @@ export async function buildRoadmap(state,{ visualAudit=true }={}) {
           headerTemplate:'<span></span>',footerTemplate:'<div style="font-size:8px;width:100%;text-align:center;color:#536176"><span class="pageNumber"></span> / <span class="totalPages"></span></div>'});
       }finally{await browser.close();}
     }
-    await writeJson(path.join(output,'roadmap.json'),state.roadmap);
+    await writeJson(path.join(diagnosticsDirectory,'roadmap.json'),state.roadmap);
     const manifest={ contentHash:hash,schemaVersion:'1.0',format:state.answers.format,delivery:deliveryFor(state.answers.format),
-      artifacts:{...(wantHtml?{siteDirectory:path.join(output,'site'),htmlArchive:path.join(output,'roadmap-html.zip'),siteEntryPoint:path.join(output,'site/index.html')}:{}),...(wantPdf?{pdf:path.join(output,'roadmap.pdf')}:{})},preliminary,
+      artifacts:{...(wantHtml?{siteDirectory:output,htmlArchive:`${output}-html.zip`,siteEntryPoint:path.join(output,'index.html')}:{}),...(wantPdf?{pdf:path.join(output,'roadmap.pdf')}:{})},
+      diagnostics:{directory:diagnosticsDirectory,roadmap:path.join(diagnosticsDirectory,'roadmap.json'),manifest:path.join(diagnosticsDirectory,'manifest.json'),...(visualAudit&&wantHtml?{screenshotsDirectory:path.join(diagnosticsDirectory,'qa')}:{})},preliminary,
       evaluation:evaluation?{total:evaluation.total,passed:evaluation.passed,blockers:evaluation.blockers}:null,
       validation,audit,pdfCreated:wantPdf,visualReview:'pending-agent-review',createdAt:new Date().toISOString() };
-    await writeJson(path.join(output,'manifest.json'),manifest);
+    await writeJson(path.join(diagnosticsDirectory,'manifest.json'),manifest);
     return {outputDirectory:output,...manifest,
-      nextAction:visualAudit&&wantHtml?'Просмотрите снимки qa/, исправьте обнаруженные дефекты. Для PDF выполните визуальную проверку страниц средствами агента. Не объявляйте непроведённые проверки успешными.':'Проведите визуальную проверку результата перед выдачей.'};
+      nextAction:visualAudit&&wantHtml?'Просмотрите снимки из diagnostics.screenshotsDirectory, исправьте обнаруженные дефекты. Для PDF выполните визуальную проверку страниц средствами агента. Не объявляйте непроведённые проверки успешными.':'Проведите визуальную проверку результата перед выдачей.'};
   }finally{await fs.rm(temp,{recursive:true,force:true});}
 }

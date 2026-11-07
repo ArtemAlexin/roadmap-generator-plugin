@@ -19,7 +19,7 @@ export function planningFor(answers){
 export function deliveryFor(format){
   if(!formatChoices.includes(format))return null;
   return {format,label:formatLabels[formatChoices.indexOf(format)],
-    ...(format!=='pdf'?{website:{kind:'interactive-local-website',archive:'roadmap-html.zip',entryPoint:'site/index.html',singleHtmlFile:false,
+    ...(format!=='pdf'?{website:{kind:'interactive-local-website',archive:'<roadmap-directory>-html.zip',entryPoint:'index.html',singleHtmlFile:false,
       description:'Многостраничный сайт: карта зависимостей, отдельные страницы этапов, поиск, темы и локальный прогресс. Распаковать ZIP и открыть index.html без сервера.'}}:{}),
     ...(format!=='html'?{pdf:{file:'roadmap.pdf',description:'Полный линейный документ.'}}:{})};
 }
