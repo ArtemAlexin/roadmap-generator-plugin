@@ -29,5 +29,10 @@ test('export both formats, ZIP extraction, snapshot parity and preliminary marki
     inputs.format='html';const htmlOnly=await buildRoadmap(state,{visualAudit:false});
     expect((await fs.readdir(htmlOnly.outputDirectory)).includes('roadmap.pdf')).toBe(false);
     expect(new Set([result.outputDirectory,pdfOnly.outputDirectory,htmlOnly.outputDirectory]).size).toBe(3);
+    inputs.scheduleMode='self-paced';delete inputs.hoursPerWeek;delete inputs.deadline;inputs.format='both';
+    roadmap.about.schedule='Порядок определяется зависимостями этапов и выполнением DoD.';
+    const free=await buildRoadmap(state,{visualAudit:false});expect(free.pdfCreated).toBe(true);expect(free.audit.passed).toBe(true);
+    const about=await fs.readFile(path.join(free.outputDirectory,'site/about.html'),'utf8');
+    expect(about).toContain('Свободный график');expect(about).not.toContain('Расчётный минимум');expect(about).not.toContain('Infinity');expect(about).not.toContain('NaN');
   }finally{await fs.rm(directory,{recursive:true,force:true});}
 });

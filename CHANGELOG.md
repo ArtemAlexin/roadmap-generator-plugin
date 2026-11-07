@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.0.3
+
+- Separate self-paced effort estimates from personal weekly scheduling.
+- In self-paced mode skip weekly-hours and deadline questions, retain all stage/total hours and reserves, and do not calculate calendar duration.
+- Keep explicit weekly planning and compatibility with earlier numeric weekly budgets.
+- Adapt HTML/PDF summaries, schedule instructions and rubric applicability to the chosen mode.
+- Add intake, rendering, responsive UI and export regression tests for self-paced learning.
+
 ## 0.0.2
 
 - Keep every intake question interactive: native MCP forms continue sequentially until completion/cancellation; clients without MCP forms are explicitly routed to the host question UI for each question.

@@ -5,9 +5,9 @@ import os from 'node:os';
 import path from 'node:path';
 import { fixture, reviewFixture } from './fixture.js';
 import { validateRoadmap,evaluateReview,contentHash,topological } from '../src/validate.js';
-import { nextQuestion, validateAnswer,deliveryFor,formatLabels } from '../src/questions.js';
+import { nextQuestion, validateAnswer,deliveryFor,formatLabels,scheduleMode,planningFor,scheduleLabels } from '../src/questions.js';
 import { Store } from '../src/store.js';
-import { md,graphLayout,renderPrint } from '../src/render.js';
+import { md,graphLayout,renderPrint,aboutContent } from '../src/render.js';
 
 test('baseline fixture has consistent graph, times and cross references',()=>{
   const {roadmap}=fixture(),v=validateRoadmap(roadmap);
@@ -51,6 +51,26 @@ test('delivery options distinguish the interactive website ZIP from the PDF docu
   const pdf=deliveryFor('pdf');assert.equal(pdf.website,undefined);assert.equal(pdf.pdf.file,'roadmap.pdf');
   const both=deliveryFor('both');assert.ok(both.website);assert.ok(both.pdf);assert.equal(deliveryFor('single-html'),null);
   assert.equal(validateAnswer('format',formatLabels[0]),'html');assert.equal(validateAnswer('format',formatLabels[2]),'both');
+});
+test('self-paced planning never requires a weekly budget or deadline; legacy weekly inputs remain valid',()=>{
+  const {inputs}=fixture();assert.equal(scheduleMode(inputs),'weekly');
+  assert.equal(scheduleMode({deadline:'Без фиксированного срока'}),'self-paced');
+  assert.equal(scheduleMode({} ),null);assert.equal(nextQuestion({goal:'g',level:'l'}).key,'scheduleMode');
+  assert.equal(validateAnswer('scheduleMode',scheduleLabels[0]),'self-paced');
+  assert.equal(validateAnswer('scheduleMode','свободный график'),'self-paced');
+  const free={...inputs,scheduleMode:'self-paced'};delete free.hoursPerWeek;delete free.deadline;
+  assert.equal(nextQuestion(free),null);assert.equal(planningFor(free).calendarBound,false);
+  assert.equal(planningFor({...inputs,scheduleMode:'self-paced'}).hoursPerWeek,null);
+  const weekly={...inputs,scheduleMode:'weekly'};delete weekly.hoursPerWeek;
+  assert.equal(nextQuestion(weekly).key,'hoursPerWeek');
+});
+test('self-paced HTML/PDF retain hours but show no calendar estimate or invalid numeric values',async()=>{
+  const {roadmap,inputs}=fixture();inputs.scheduleMode='self-paced';delete inputs.hoursPerWeek;delete inputs.deadline;
+  roadmap.about.schedule='Изучайте этапы в порядке зависимостей; переходите после выполнения DoD.';
+  const about=aboutContent(roadmap,inputs,null);assert.match(about,/12 ч/);assert.match(about,/Свободный график/);
+  assert.match(about,/Порядок прохождения/);assert.doesNotMatch(about,/Расчётный минимум|График по неделям|NaN|Infinity|undefined/);
+  const print=await renderPrint(roadmap,inputs,null,null);assert.doesNotMatch(print,/Расчётный минимум|NaN|Infinity|undefined/);
+  const weekly=fixture();assert.match(aboutContent(weekly.roadmap,weekly.inputs,null),/3 нед\./);
 });
 test('persistent sessions serialize updates, resume and sanitize reviewer packets',async()=>{
   const dir=await fs.mkdtemp(path.join(os.tmpdir(),'roadmap-store-test-'));

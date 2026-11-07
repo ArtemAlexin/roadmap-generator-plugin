@@ -4,7 +4,7 @@ import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import os from 'node:os';
 import { readJson, writeJson, safeId } from './files.js';
-import { nextQuestion, validateAnswer, deliveryFor } from './questions.js';
+import { nextQuestion, validateAnswer, deliveryFor,planningFor } from './questions.js';
 import { contentHash, validateRoadmap, evaluateReview } from './validate.js';
 
 export const root = fileURLToPath(new URL('../', import.meta.url));
@@ -41,7 +41,7 @@ export class Store {
     return { sessionId: state.id, authorId:state.authorId, nextQuestion: nextQuestion(state.answers), inputComplete: !nextQuestion(state.answers),
       answers: state.answers, stageCount: state.roadmap.stages.length, sourceCount: state.roadmap.sources.length,
       reviewCurrent: state.review?.contentHash === contentHash(state.roadmap,state.answers), builds: state.builds,
-      delivery:deliveryFor(state.answers.format),
+      delivery:deliveryFor(state.answers.format),planning:planningFor(state.answers),
       nextAction:nextQuestion(state.answers)?{type:'call_tool',tool:'roadmap_question',arguments:{sessionId:state.id},
         instruction:'Continue interactive intake through roadmap_question. Do not ask the displayed nextQuestion as plain chat when interactive input is available; use native MCP forms or the host question UI for EVERY question.'}:null };
   }

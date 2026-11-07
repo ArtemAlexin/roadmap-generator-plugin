@@ -11,9 +11,26 @@ let directory;
 test.beforeAll(async()=>{
   directory=await fs.mkdtemp(path.join(os.tmpdir(),'roadmap-ui-test-'));
   const {roadmap,inputs}=fixture();await renderSite(directory,roadmap,inputs,null,null);
+  const free=fixture();free.inputs.scheduleMode='self-paced';delete free.inputs.hoursPerWeek;delete free.inputs.deadline;
+  free.roadmap.about.schedule='Проходите этапы в порядке зависимостей после выполнения DoD.';
+  await renderSite(path.join(directory,'self-paced'),free.roadmap,free.inputs,null,null);
 });
 test.afterAll(async()=>{await fs.rm(directory,{recursive:true,force:true});});
 const url=file=>pathToFileURL(path.join(directory,file)).href;
+
+test('self-paced site keeps effort estimates without weekly budget or calendar completion',async({page})=>{
+  for(const width of [1440,390]){
+    await page.setViewportSize({width,height:900});
+    await page.goto(url('self-paced/index.html'));
+    await expect(page.locator('.stats')).toContainText('12 ч');await expect(page.locator('.stats')).toContainText('Свободный график');
+    await expect(page.locator('.stats')).not.toContainText('В неделю');
+    await page.goto(url('self-paced/about.html'));
+    await expect(page.getByRole('heading',{name:'Порядок прохождения',exact:true})).toBeVisible();
+    await expect(page.locator('main')).not.toContainText('Расчётный минимум');
+    await expect(page.locator('main')).not.toContainText('Infinity');await expect(page.locator('main')).not.toContainText('NaN');
+    expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true);
+  }
+});
 
 test('file:// navigation, complete stages and external-network-free operation',async({page})=>{
   const errors=[],network=[];page.on('pageerror',e=>errors.push(e.message));page.on('request',r=>{if(/^https?:/.test(r.url()))network.push(r.url());});
