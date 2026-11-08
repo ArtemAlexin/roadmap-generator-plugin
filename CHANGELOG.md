@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.0.6
+
+- Add full-roadmap clarity and content-preserving proofreading guidance for authors and reviewers.
+- Use readable safe export directory names and stage/technically check selected artifacts before no-overwrite publication; visual inspection remains a host responsibility.
+- The observed whitespace issue (#5) remains unverified without the affected source/session and browser artifact; no speculative renderer fix was made.
+- Editorial workflow verification is incomplete (#6): final independent review found meaning changes in the synthetic proofreading example. Passing automated checks do not establish content-preserving proofreading.
+
 ## 0.0.5
 
 - Export site files directly into the roadmap directory, keep the ZIP alongside it and store snapshots, manifests and QA screenshots in the plugin data directory.

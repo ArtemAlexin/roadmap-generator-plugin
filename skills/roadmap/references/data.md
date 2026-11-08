@@ -1,5 +1,7 @@
 # Data conventions
 
+Редактируй содержимое в источнике через upsert, а не в экспорте. До review выполни и запиши отдельные проходы A/B по `roadmap_guidance(phase=editorial)`; изменения данных инвалидируют прежний review hash.
+
 Read the JSON Schema for the current object via roadmap_schema. Schema version is 1.0. Markdown is supported in explanatory strings; HTML is sanitized. Use “—” for a genuinely inapplicable textual field, with an explanation when important. An empty list means not applicable, not “to be completed”. Stable IDs use letters, numbers, underscores and hyphens, unique across all objects. Stages: M01; steps: M01-S1; practice: M01-P1; criteria: M01-D1. Competences C01, sources S01, scenarios SC01, evidence E01.
 
 Single objects: title, language, about, report. Collections upserted one item per call: competences, scenarios, sources, stages, evidence. coverage is replaced as an array. Use roadmap_remove to delete an obsolete collection item; fix its references too. Lists/fields are not inferred or auto-filled by the server.

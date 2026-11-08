@@ -1,6 +1,6 @@
 {
   "name": "roadmap-generator",
-  "version": "0.0.5",
+  "version": "0.0.6",
   "description": "Generate sourced learning roadmaps as offline HTML or PDF",
   "author": {
     "name": "Personal roadmap tools"

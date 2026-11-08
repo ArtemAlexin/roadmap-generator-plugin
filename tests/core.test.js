@@ -80,6 +80,8 @@ test('persistent sessions serialize updates, resume and sanitize reviewer packet
     await Promise.all([store.answer(id,'level','new level'),store.answer(id,'constraints','new constraints')]);
     assert.equal((await new Store(dir).load(id)).answers.level,'new level');
     const packet=await store.prepareReview(id),text=await fs.readFile(packet.packetFile,'utf8');
+    assert.ok(text.includes('Проход A'));
+    assert.ok(text.includes('Полная редактура roadmap'));
     assert.ok(!text.includes('SECRET SELF SCORE'));assert.ok(!text.includes('SECRET HISTORY'));
     const state=await store.load(id),review=reviewFixture(state.roadmap,state.answers);
     const bad=structuredClone(review);bad.reviewer.identity='fixture-author';
@@ -87,8 +89,21 @@ test('persistent sessions serialize updates, resume and sanitize reviewer packet
     await store.submitReview(id,packet.reviewRequestId,review);
     await assert.rejects(store.submitReview(id,packet.reviewRequestId,review),/использован/);
     await store.put(id,'title','Updated title','fixture-author');assert.equal((await store.get(id)).reviewCurrent,false);
+    const stalePacket=await store.prepareReview(id),before=(await store.get(id,'about')).summary;
+    await store.put(id,'about',{...await store.get(id,'about'),summary:`${before}.`},'fixture-author');
+    const staleState=await store.load(id);
+    await assert.rejects(store.submitReview(id,stalePacket.reviewRequestId,reviewFixture(staleState.roadmap,staleState.answers)),/устарел/);
     await assert.rejects(store.load('../escape'),/Недопустимый/);
   }finally{await fs.rm(dir,{recursive:true,force:true});}
+});
+
+test('renderer preserves observed source spacing and formatting without rewriting source text',()=>{
+  const observed='Через7 и30 дней по2ч: без отчёта восстановить решение, затем изменить одно условие, проверить и обновить backlog. Часы включены.';
+  const expected='Через 7 и 30 дней по 2 ч: без отчёта восстановить решение, затем изменить одно условие, проверить и обновить backlog. Часы включены.';
+  for(const value of [observed,expected,'Через **7** и `30` дней по 2 ч.']){
+    const output=md(value);
+    assert.equal(output.replace(/<[^>]*>/g,'').trim(),value.replaceAll('**','').replaceAll('`',''));
+  }
 });
 test('Markdown removes script, event attributes, JS URLs and embedded network media',()=>{
   const output=md('<script>alert(1)</script><img src="https://bad.test/pixel" onerror="alert(1)"><a href="javascript:alert(1)">bad</a>\n\n[good](https://example.org)');

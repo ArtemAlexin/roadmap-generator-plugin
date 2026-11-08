@@ -10,10 +10,29 @@ import * as schemas from './schema.js';
 import { validateRoadmap } from './validate.js';
 import { buildRoadmap } from './build.js';
 
-const guidanceFiles={ workflow:'SKILL.md',curriculum:'references/curriculum.md',sources:'references/sources.md',review:'references/review.md',rubric:'references/rubric.md',delivery:'references/delivery.md',data:'references/data.md' };
+const guidanceFiles={ workflow:'SKILL.md',curriculum:'references/curriculum.md',sources:'references/sources.md',review:'references/review.md',rubric:'references/rubric.md',delivery:'references/delivery.md',data:'references/data.md',editorial:'references/editorial.md' };
+export async function buildAndPersist(store,sessionId,build=buildRoadmap){
+  let publishedResult;
+  try{
+    return await store.mutate(sessionId,async state=>{
+      const result=await build(state,{diagnosticsRoot:path.join(store.directory,'builds')});
+      publishedResult=result;
+      state.builds.push(result);
+      return result;
+    });
+  }catch(error){
+    if(publishedResult){
+      const artifacts=Object.values(publishedResult.artifacts||{}).join(', ')||publishedResult.outputDirectory;
+      const diagnostics=publishedResult.diagnostics?.directory||path.join(store.directory,'builds');
+      error.message+=`; артефакты уже опубликованы (${artifacts}); диагностика сборки: ${diagnostics}. Состояние сессии не сохранено.`;
+      error.publishedResult=publishedResult;
+    }
+    throw error;
+  }
+}
 export function createServer({dataDirectory=defaultDataDirectory()}={}){
   const store=new Store(dataDirectory);
-  const server=new McpServer({name:'roadmap-generator',version:'0.0.5'},{instructions:'Use roadmap_guidance(workflow) for roadmap requests. Every intake question must use interactive input, not just the first. Call roadmap_question after roadmap_start and after every host-UI answer. Native forms continue automatically one at a time until intake completes or the user cancels. If MCP forms are unsupported, use the host question UI for every question; plain chat is only a last resort when the host has no interactive UI. HTML means the interactive multi-page local website in a ZIP, never one standalone HTML file. This server supplies state and rendering, not an LLM or a browser research service. Use host research tools and a separate reviewer. Never fabricate verification.'});
+  const server=new McpServer({name:'roadmap-generator',version:'0.0.6'},{instructions:'Use roadmap_guidance(workflow) for roadmap requests. Every intake question must use interactive input, not just the first. Call roadmap_question after roadmap_start and after every host-UI answer. Native forms continue automatically one at a time until intake completes or the user cancels. If MCP forms are unsupported, use the host question UI for every question; plain chat is only a last resort when the host has no interactive UI. HTML means the interactive multi-page local website in a ZIP, never one standalone HTML file. This server supplies state and rendering, not an LLM or a browser research service. Use host research tools and a separate reviewer. Never fabricate verification.'});
   const reply=value=>({content:[{type:'text',text:JSON.stringify(value,null,2)}]});
   const register=(name,description,inputSchema,handler)=>server.registerTool(name,{description,inputSchema,annotations:{readOnlyHint:['roadmap_guidance','roadmap_schema','roadmap_get','roadmap_validate'].includes(name),destructiveHint:false,openWorldHint:false}},async args=>{
     try{return reply(await handler(args));}catch(e){return {isError:true,content:[{type:'text',text:e.message}]};}
@@ -50,7 +69,7 @@ export function createServer({dataDirectory=defaultDataDirectory()}={}){
   register('roadmap_validate','Mechanical validation only; does not prove factual accuracy or source sufficiency.',{sessionId:z.string()},async a=>validateRoadmap((await store.load(a.sessionId)).roadmap));
   register('roadmap_prepare_review','Create a file packet without prior scores, review conclusions, self-assessment or change history. Give to a separate clean-context reviewer.',{sessionId:z.string()},async a=>store.prepareReview(a.sessionId));
   register('roadmap_submit_review','Store actual separate-reviewer results and calculate the unchanged 100-point rubric. Identity and independent flag are attestations, not cryptographic proof.',{sessionId:z.string(),requestId:z.string(),review:z.unknown()},async a=>store.submitReview(a.sessionId,a.requestId,a.review));
-  register('roadmap_build','Build selected interactive local website (ZIP), PDF or both under the user-selected output directory. HTML always means the multi-page interactive site with DAG, stage pages, search, themes and progress; never offer/export a single standalone HTML file. New directory per build; incomplete verification produces an explicitly preliminary program.',{sessionId:z.string()},async({sessionId})=>store.mutate(sessionId,async state=>{const result=await buildRoadmap(state,{diagnosticsRoot:path.join(store.directory,'builds')});state.builds.push(result);return result;}));
+  register('roadmap_build','Stage and machine-check the complete selected interactive local website (ZIP), PDF or both before copying into the user-selected output directory. HTML always means the multi-page interactive site with DAG, stage pages, search, themes and progress; never offer/export a single standalone HTML file. New safely named directory per build; incomplete content verification produces an explicitly preliminary program; visual review remains pending until the host inspects artifacts.',{sessionId:z.string()},async({sessionId})=>buildAndPersist(store,sessionId));
   server.registerPrompt('create-roadmap',{description:'Start a personalized, sourced roadmap with interactive questions and HTML/PDF output.'},async()=>({messages:[{role:'user',content:{type:'text',text:await fs.readFile(path.join(root,'skills/roadmap/SKILL.md'),'utf8')}}]}));
   return {server,store};
 }

@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 const root=fileURLToPath(new URL('../../',import.meta.url));
 const entry=path.join(root,'src/server.js');
 const skillFile=path.join(root,'skills/roadmap/SKILL.md');
-const description='Персональный roadmap: интерактивный опрос, проверенные материалы, практика, отдельное рецензирование, HTML/PDF.';
+const description='Персональный roadmap: интерактивный опрос, проверенные материалы, практика, полная редактура, отдельное рецензирование, HTML/PDF.';
 function name(value,fallback){
   const result=value??fallback;
   if(typeof result!=='string'||!/^[a-z][a-z0-9_-]{0,63}$/.test(result))throw new Error('Roadmap: имена сервера/команды должны состоять из строчных букв, цифр, _ и -.');

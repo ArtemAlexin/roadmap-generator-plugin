@@ -88,6 +88,7 @@ export class Store {
         rubric: await fs.readFile(path.join(root,'skills/roadmap/references/rubric.md'),'utf8'),
         sources: await fs.readFile(path.join(root,'skills/roadmap/references/sources.md'),'utf8'),
         curriculum: await fs.readFile(path.join(root,'skills/roadmap/references/curriculum.md'),'utf8'),
+        editorial: await fs.readFile(path.join(root,'skills/roadmap/references/editorial.md'),'utf8'),
         reviewSchema: 'Read roadmap_schema section=review. Return review plus this reviewRequestId. Use a fresh context; do not read session history.' };
       state.reviewRequests.push({ token, hash:packet.contentHash, used:false });
       const packetFile = path.join(this.directory,`${id}-review-${token}.json`);

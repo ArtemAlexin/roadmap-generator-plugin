@@ -1,4 +1,4 @@
-import { test } from 'node:test';
+import { test,mock } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
@@ -6,7 +6,8 @@ import path from 'node:path';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { ElicitRequestSchema } from '@modelcontextprotocol/sdk/types.js';
-import { root } from '../src/store.js';
+import { root,Store } from '../src/store.js';
+import { buildAndPersist } from '../src/server.js';
 import { fixture } from './fixture.js';
 import { formatLabels,scheduleLabels } from '../src/questions.js';
 
@@ -22,6 +23,16 @@ const call=async(client,name,args={})=>{
   if(result.isError)throw new Error(result.content[0].text);
   return JSON.parse(result.content[0].text);
 };
+test('build persistence failure reports artifacts and diagnostics already published',async t=>{
+  const dir=await fs.mkdtemp(path.join(os.tmpdir(),'roadmap-persist-test-'));t.after(()=>fs.rm(dir,{recursive:true,force:true}));
+  const store=new Store(dir),session=await store.create();
+  const result={outputDirectory:path.join(dir,'exports','published'),artifacts:{siteDirectory:path.join(dir,'exports','published'),htmlArchive:path.join(dir,'exports','published-html.zip')},diagnostics:{directory:path.join(dir,'builds','build-1')}};
+  const failure=Object.assign(new Error('injected state persistence failure'),{code:'EIO'});
+  const original=fs.rename,stub=mock.method(fs,'rename',async function(from,to,...args){if(to===store.file(session.sessionId))throw failure;return original.call(this,from,to,...args);});
+  try{
+    await assert.rejects(buildAndPersist(store,session.sessionId,async()=>result),error=>error===failure&&error.publishedResult===result&&error.message.includes(result.artifacts.siteDirectory)&&error.message.includes(result.artifacts.htmlArchive)&&error.message.includes(result.diagnostics.directory)&&/Состояние сессии не сохранено/.test(error.message));
+  }finally{stub.mock.restore();}
+});
 test('real stdio handshake, discovery, prompt and explicit host-UI fallback',async()=>{
   const c=await connected();try{
     const tools=await c.client.listTools();assert.ok(tools.tools.some(t=>t.name==='roadmap_build'));
@@ -36,6 +47,8 @@ test('real stdio handshake, discovery, prompt and explicit host-UI fallback',asy
     assert.equal((await call(c.client,'roadmap_get',{sessionId:start.sessionId})).answers.goal,'My exact goal');
     const schema=await call(c.client,'roadmap_schema',{section:'stage'});assert.ok(schema.properties.dod);
     const guidance=await call(c.client,'roadmap_guidance',{phase:'sources'});assert.ok(guidance.text.includes('фактически'));
+    const editorial=await call(c.client,'roadmap_guidance',{phase:'editorial'});
+    assert.match(editorial.text,/Проход A/);assert.match(editorial.text,/Проход B/);assert.match(editorial.text,/пунктуац/i);assert.match(editorial.text,/весь тот же инвентарь/);
   }finally{await c.close();}
 });
 test('native MCP elicitation asks one field, cancellation preserves pending question',async()=>{
