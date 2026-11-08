@@ -4,7 +4,7 @@ import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 export { defaultDataDirectory } from './data-directory.js';
 import { readJson, writeJson, safeId } from './files.js';
-import { nextQuestion, validateAnswer, deliveryFor,planningFor } from './questions.js';
+import { nextQuestion, validateAnswer, deliveryFor,planningFor,planningInputs } from './questions.js';
 import { contentHash, validateRoadmap, evaluateReview } from './validate.js';
 
 export const root = fileURLToPath(new URL('../', import.meta.url));
@@ -83,7 +83,7 @@ export class Store {
       delete roadmap.report.changes; delete roadmap.report.authorSelfAssessment;
       const token = randomUUID();
       const packet = { reviewRequestId:token, contentHash:contentHash(state.roadmap,state.answers),
-        inputs:state.answers, roadmap,
+        inputs:planningInputs(state.answers), planning:planningFor(state.answers), roadmap,
         instructions: await fs.readFile(path.join(root,'skills/roadmap/references/review.md'),'utf8'),
         rubric: await fs.readFile(path.join(root,'skills/roadmap/references/rubric.md'),'utf8'),
         sources: await fs.readFile(path.join(root,'skills/roadmap/references/sources.md'),'utf8'),

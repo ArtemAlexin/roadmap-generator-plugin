@@ -40,11 +40,16 @@ test('export both formats, ZIP extraction, snapshot parity and preliminary marki
     expect(path.relative(htmlOnly.outputDirectory,htmlOnly.diagnostics.directory).startsWith('..')).toBe(true);
     expect((await fs.readdir(htmlOnly.outputDirectory)).includes('roadmap.pdf')).toBe(false);
     expect(new Set([result.outputDirectory,pdfOnly.outputDirectory,htmlOnly.outputDirectory]).size).toBe(3);
-    inputs.scheduleMode='self-paced';delete inputs.hoursPerWeek;delete inputs.deadline;inputs.format='both';
-    roadmap.about.schedule='Порядок определяется зависимостями этапов и выполнением DoD.';
+    inputs.format='both';inputs.scheduleMode='weekly';inputs.hoursPerWeek=456;inputs.deadline='LEGACY-EXPORT-DEADLINE';
+    roadmap.about.schedule='Исторический текст: 3 недели; порядок определяется зависимостями этапов и DoD.';
     const free=await buildRoadmap(state,options);expect(free.pdfCreated).toBe(true);expect(free.audit.passed).toBe(true);
     const about=await fs.readFile(path.join(free.outputDirectory,'about.html'),'utf8');
-    expect(about).toContain('Свободный график');expect(about).not.toContain('Расчётный минимум');expect(about).not.toContain('Infinity');expect(about).not.toContain('NaN');
+    expect(about).toContain('Обязательный маршрут с резервом');expect(about).toContain('Авторский текст не подтверждён текущей проверкой');
+    expect(about).not.toContain('Расчётный минимум');expect(about).not.toContain('В неделю');expect(about).not.toContain('Infinity');expect(about).not.toContain('NaN');
+    const manifest=JSON.parse(await fs.readFile(free.diagnostics.manifest,'utf8'));
+    expect(manifest.planning.mode).toBe('effort-only');expect(JSON.parse(await fs.readFile(free.diagnostics.roadmap,'utf8'))).toEqual(roadmap);
+    const report=await fs.readFile(path.join(free.outputDirectory,'report.html'),'utf8');
+    expect(report).toContain('Исторические поля графика сохранены');expect(report).not.toContain('LEGACY-EXPORT-DEADLINE');expect(report).not.toContain('456');
   }finally{await fs.rm(directory,{recursive:true,force:true});await fs.rm(`${directory}-html.zip`,{force:true});await fs.rm(internal,{recursive:true,force:true});}
 });
 

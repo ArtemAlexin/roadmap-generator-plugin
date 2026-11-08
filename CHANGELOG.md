@@ -1,8 +1,13 @@
 # Changelog
 
-## Unreleased
+## 0.0.8
 
-- Keep open intake questions as free text or numeric input; offer only the predefined schedule and format choices. Host-UI responses now specify inputMode and instructions for clients whose question widget requires options.
+- Keep open intake questions as free text; offer predefined choices only for the output format. Host-UI responses specify inputMode and instructions for clients whose question widget requires options.
+- Remove schedule selection, weekly-hours and deadline intake. Estimate approximate effort per task, stage and program, with a separate reserve, without calendar-duration calculations.
+- Preserve existing session data and exported files without automatic migration or rewriting. Legacy scheduling inputs no longer affect planning or reviewer inputs; new writes to retired fields are rejected.
+- Version the review contract so earlier reviews are not treated as current under effort-only planning. Preserve review history and flag unverified historical prose in newly built preliminary exports.
+- Keep rubric weights and thresholds unchanged; remove personal-calendar requirements and require reviewers to block unresolved active scheduling promises.
+- Known unresolved whitespace (#5) and editorial verification (#6) limitations remain unchanged. PDF output is automatically checked but was not manually visually inspected for this release.
 
 ## 0.0.7
 

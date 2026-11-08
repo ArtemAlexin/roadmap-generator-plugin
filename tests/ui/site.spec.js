@@ -11,21 +11,35 @@ let directory;
 test.beforeAll(async()=>{
   directory=await fs.mkdtemp(path.join(os.tmpdir(),'roadmap-ui-test-'));
   const {roadmap,inputs}=fixture();await renderSite(directory,roadmap,inputs,null,null);
-  const free=fixture();free.inputs.scheduleMode='self-paced';delete free.inputs.hoursPerWeek;delete free.inputs.deadline;
-  free.roadmap.about.schedule='Проходите этапы в порядке зависимостей после выполнения DoD.';
-  await renderSite(path.join(directory,'self-paced'),free.roadmap,free.inputs,null,null);
+  const legacy=fixture();legacy.inputs.scheduleMode='weekly';legacy.inputs.hoursPerWeek=6;legacy.inputs.deadline='2030-01-01';
+  legacy.roadmap.about.schedule='Историческая календарная фраза: недели 7 и 8';
+  await renderSite(path.join(directory,'legacy'),legacy.roadmap,legacy.inputs,null,null);
 });
 test.afterAll(async()=>{await fs.rm(directory,{recursive:true,force:true});});
 const url=file=>pathToFileURL(path.join(directory,file)).href;
 
-test('self-paced site keeps effort estimates without weekly budget or calendar completion',async({page})=>{
+test('effort-only site shows hours and a preliminary legacy notice in search and on result',async({page})=>{
   for(const width of [1440,390]){
     await page.setViewportSize({width,height:900});
-    await page.goto(url('self-paced/index.html'));
-    await expect(page.locator('.stats')).toContainText('12 ч');await expect(page.locator('.stats')).toContainText('Свободный график');
-    await expect(page.locator('.stats')).not.toContainText('В неделю');
-    await page.goto(url('self-paced/about.html'));
+    await page.goto(url('legacy/index.html'));
+    await expect(page.locator('.stats')).toContainText('12 ч');await expect(page.locator('.stats')).toContainText('2 ч');
+    await expect(page.locator('.stats')).toContainText('14 ч');await expect(page.locator('.stats')).not.toContainText('В неделю');
+    await page.keyboard.press('Control+k');
+    const dialog=page.locator('#search-dialog');await expect(dialog).toBeVisible();
+    const notice=dialog.locator('.effort-notice');await expect(notice).toBeVisible();
+    await expect(notice).toContainText('Авторский текст не подтверждён текущей проверкой');
+    const bounds=await notice.boundingBox(),dialogBounds=await dialog.boundingBox();
+    expect(bounds.x).toBeGreaterThanOrEqual(dialogBounds.x);expect(bounds.x+bounds.width).toBeLessThanOrEqual(dialogBounds.x+dialogBounds.width);
+    expect(bounds.y).toBeGreaterThanOrEqual(dialogBounds.y);expect(bounds.y+bounds.height).toBeLessThanOrEqual(dialogBounds.y+dialogBounds.height);
+    const indexed=await fs.readFile(path.join(directory,'legacy/assets/data.js'),'utf8');
+    expect(indexed).not.toContain('Оценки — приблизительная трудоёмкость');
+    await page.locator('#search-input').fill('Историческая календарная фраза');
+    await expect(page.locator('#search-results a')).toContainText('О программе');
+    await page.locator('#search-results a').first().click();
+    await expect(page).toHaveURL(/about\.html/);
+    await expect(page.locator('main')).toContainText('Авторский текст не подтверждён текущей проверкой');
     await expect(page.getByRole('heading',{name:'Порядок прохождения',exact:true})).toBeVisible();
+    await expect(page.locator('.stats')).toContainText('Обязательный маршрут с резерв');
     await expect(page.locator('main')).not.toContainText('Расчётный минимум');
     await expect(page.locator('main')).not.toContainText('Infinity');await expect(page.locator('main')).not.toContainText('NaN');
     expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true);

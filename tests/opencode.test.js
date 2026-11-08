@@ -36,7 +36,8 @@ test('OpenCode /roadmap preserves user prompt, attachments, session and delivery
   assert.ok(request.text.includes('Научиться анализировать данные'));assert.ok(request.text.includes('чистый контекст'));
   assert.ok(request.text.includes('включая все вопросы после первого'));assert.ok(request.text.includes('mode=host-ui'));
   assert.ok(request.text.includes('inputMode'));
-  assert.match(h.skillMap.get('roadmap').content,/question\.choices.*source of truth/);
+  assert.match(h.skillMap.get('roadmap').content,/six active questions/);
+  assert.ok(request.text.includes('effort-only'));
   assert.ok(request.text.includes('Интерактивный локальный сайт (ZIP)'));assert.ok(request.text.includes('roadmap_build'));
 });
 test('OpenCode preserves existing matching server config and rolls back on skill conflict',async()=>{

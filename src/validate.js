@@ -1,6 +1,7 @@
 import Ajv from 'ajv';
 import { createHash } from 'node:crypto';
 import { roadmapSchema, reviewSchema, rubricWeights } from './schema.js';
+import { planningInputs } from './questions.js';
 const ajv = new Ajv({ allErrors: true, strict: true });
 const structural = ajv.compile(roadmapSchema);
 const reviewShape = ajv.compile(reviewSchema);
@@ -9,7 +10,7 @@ export function canonical(value) {
   if (value && typeof value === 'object') return `{${Object.keys(value).sort().map(k => `${JSON.stringify(k)}:${canonical(value[k])}`).join(',')}}`;
   return JSON.stringify(value);
 }
-export function contentHash(roadmap, inputs) { return createHash('sha256').update(canonical({ roadmap, inputs })).digest('hex'); }
+export function contentHash(roadmap, inputs) { return createHash('sha256').update(canonical({ contract:'effort-only-v1', roadmap, inputs:planningInputs(inputs) })).digest('hex'); }
 export function topological(stages) {
   const byId = new Map(stages.map(s => [s.id, s]));
   const done = new Set(), active = new Set(), order = [];

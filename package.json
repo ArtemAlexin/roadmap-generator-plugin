@@ -1,6 +1,6 @@
 {
   "name": "roadmap-generator-plugin",
-  "version": "0.0.7",
+  "version": "0.0.8",
   "description": "Agent-portable roadmap workflow, MCP server and offline HTML/PDF renderer",
   "type": "module",
   "private": true,

@@ -9,7 +9,7 @@ import { ElicitRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import { root,Store } from '../src/store.js';
 import { buildAndPersist } from '../src/server.js';
 import { fixture } from './fixture.js';
-import { formatLabels,scheduleLabels } from '../src/questions.js';
+import { formatLabels } from '../src/questions.js';
 
 async function connected(capabilities={}){
   const dir=await fs.mkdtemp(path.join(os.tmpdir(),'roadmap-mcp-test-'));
@@ -24,25 +24,24 @@ const call=async(client,name,args={})=>{
   return JSON.parse(result.content[0].text);
 };
 
-test('host intake offers predefined options only for schedule and format',async()=>{
+test('host intake offers six active questions and predefined options only for format',async()=>{
   const c=await connected();try{
     const start=await call(c.client,'roadmap_start');
     const fields=[
       ['goal','text','Авторская цель'],['level','text','Авторский опыт'],
-      ['scheduleMode','choice',scheduleLabels[1]],['hoursPerWeek','number',4],
-      ['deadline','text','Без срока'],['constraints','text','Нет'],['priorities','text','Нет'],
+      ['constraints','text','Нет'],['priorities','text','Нет'],
       ['format','choice',formatLabels[0]],['outputDirectory','text',c.dir],
     ];
     for(const [key,inputMode,value] of fields){
       const result=await call(c.client,'roadmap_question',{sessionId:start.sessionId});
       assert.equal(result.question.key,key);assert.equal(result.inputMode,inputMode);
       if(inputMode==='choice'){
-        assert.deepEqual(result.question.labels,key==='scheduleMode'?scheduleLabels:formatLabels);
+        assert.deepEqual(result.question.labels,formatLabels);
         assert.match(result.instruction,/only the supplied/);
       }else{
         assert.equal(result.question.choices,undefined);
         assert.match(result.instruction,/Do not invent/);
-        assert.match(result.instruction,/free[- ](?:text|numeric)/);
+        assert.match(result.instruction,/free[- ]text/);
       }
       await call(c.client,'roadmap_answer',{sessionId:start.sessionId,key,value});
     }
@@ -69,7 +68,7 @@ test('real stdio handshake, discovery, prompt and explicit host-UI fallback',asy
     assert.equal(next.afterAnswer.then,'roadmap_question');
     const saved=await call(c.client,'roadmap_answer',{sessionId:start.sessionId,key:'level',value:'Custom experience'});
     assert.equal(saved.nextAction.tool,'roadmap_question');
-    const second=await call(c.client,'roadmap_question',{sessionId:start.sessionId});assert.equal(second.mode,'host-ui');assert.equal(second.question.key,'scheduleMode');
+    const second=await call(c.client,'roadmap_question',{sessionId:start.sessionId});assert.equal(second.mode,'host-ui');assert.equal(second.question.key,'constraints');
     assert.equal((await call(c.client,'roadmap_get',{sessionId:start.sessionId})).answers.goal,'My exact goal');
     const schema=await call(c.client,'roadmap_schema',{section:'stage'});assert.ok(schema.properties.dod);
     const guidance=await call(c.client,'roadmap_guidance',{phase:'sources'});assert.ok(guidance.text.includes('фактически'));
@@ -84,7 +83,7 @@ test('native MCP elicitation asks one field, cancellation preserves pending ques
       calls++;assert.equal(Object.keys(request.params.requestedSchema.properties).length,1);
       return action==='accept'?{action,content:{answer:'Опыт пользователя'}}:{action};
     });
-    const knownInputs=fixture(c.dir).inputs;knownInputs.scheduleMode='weekly';delete knownInputs.level;delete knownInputs.hoursPerWeek;
+    const knownInputs=fixture(c.dir).inputs;delete knownInputs.level;
     const start=await call(c.client,'roadmap_start',{knownInputs});
     const cancelled=await call(c.client,'roadmap_question',{sessionId:start.sessionId});assert.equal(cancelled.pending,true);
     assert.equal((await call(c.client,'roadmap_get',{sessionId:start.sessionId})).nextQuestion.key,'level');
@@ -93,20 +92,19 @@ test('native MCP elicitation asks one field, cancellation preserves pending ques
       calls++;return {action:'accept',content:{answer:request.params.requestedSchema.properties.answer.type==='number'?6:'Опыт пользователя'}};
     });
     const complete=await call(c.client,'roadmap_question',{sessionId:start.sessionId});
-    assert.equal(calls,3);assert.equal(complete.complete,true);assert.equal(complete.inputComplete,true);assert.equal(complete.nextQuestion,null);
+    assert.equal(calls,2);assert.equal(complete.complete,true);assert.equal(complete.inputComplete,true);assert.equal(complete.nextQuestion,null);
   }finally{await c.close();}
 });
 
-test('one native intake call asks all weekly-plan questions interactively and describes a ZIP website',async()=>{
+test('one native intake call asks all active questions interactively and describes a ZIP website',async()=>{
   const c=await connected({elicitation:{form:{}}});try{
-    const answers=['Моя цель','Мой опыт',scheduleLabels[1],4,'Без срока','Ограничений нет','Без приоритетов',formatLabels[0],c.dir];
+    const answers=['Моя цель','Мой опыт','Ограничений нет','Без приоритетов',formatLabels[0],c.dir];
     let index=0;
     c.client.setRequestHandler(ElicitRequestSchema,async request=>{
       assert.equal(Object.keys(request.params.requestedSchema.properties).length,1);
       const field=request.params.requestedSchema.properties.answer;
-      if(index===2)assert.deepEqual(field.enum,scheduleLabels);
-      else if(index!==7){assert.equal(field.enum,undefined);assert.equal(field.type,index===3?'number':'string');}
-      if(index===7){
+      if(index!==4){assert.equal(field.enum,undefined);assert.equal(field.type,'string');}
+      if(index===4){
         assert.deepEqual(request.params.requestedSchema.properties.answer.enum,formatLabels);
         assert.match(request.params.message,/ZIP/);assert.match(request.params.message,/отдельными страницами/);
       }
@@ -114,10 +112,10 @@ test('one native intake call asks all weekly-plan questions interactively and de
     });
     const start=await call(c.client,'roadmap_start');
     const result=await call(c.client,'roadmap_question',{sessionId:start.sessionId});
-    assert.equal(index,9);assert.equal(result.complete,true);assert.equal(result.answers.format,'html');
+    assert.equal(index,6);assert.equal(result.complete,true);assert.equal(result.answers.format,'html');
     assert.equal(result.delivery.website.kind,'interactive-local-website');assert.equal(result.delivery.website.singleHtmlFile,false);
     assert.equal(result.delivery.website.archive,'<roadmap-directory>-html.zip');assert.equal(result.nextAction,null);
-    await call(c.client,'roadmap_question',{sessionId:start.sessionId});assert.equal(index,9);
+    await call(c.client,'roadmap_question',{sessionId:start.sessionId});assert.equal(index,6);
   }finally{await c.close();}
 });
 
@@ -187,24 +185,23 @@ test('native intake cancelled after first answer resumes forms for the remaining
     const stopped=await call(c.client,'roadmap_question',{sessionId:start.sessionId});
     assert.equal(stopped.question.key,'level');assert.equal(stopped.pending,true);
     const saved=await call(c.client,'roadmap_get',{sessionId:start.sessionId});assert.equal(saved.answers.goal,'Сохранённая цель');assert.equal(saved.answers.level,undefined);
-    const answers=['Опыт',scheduleLabels[1],2,'Без срока','Нет','Нет',formatLabels[2],c.dir];let index=0;
+    const answers=['Опыт','Нет','Нет',formatLabels[2],c.dir];let index=0;
     c.client.setRequestHandler(ElicitRequestSchema,async()=>({action:'accept',content:{answer:answers[index++]}}));
     const result=await call(c.client,'roadmap_question',{sessionId:start.sessionId});
-    assert.equal(index,8);assert.equal(result.inputComplete,true);assert.equal(result.answers.goal,'Сохранённая цель');assert.equal(result.answers.format,'both');
+    assert.equal(index,5);assert.equal(result.inputComplete,true);assert.equal(result.answers.goal,'Сохранённая цель');assert.equal(result.answers.format,'both');
   }finally{await c.close();}
 });
 
-test('self-paced intake skips weekly hours and deadline but completes every other form',async()=>{
+test('effort-only intake completes without asking for a schedule',async()=>{
   const c=await connected({elicitation:{form:{}}});try{
-    const answers=['Цель','Опыт',scheduleLabels[0],'Нет','Нет',formatLabels[0],c.dir];let index=0;
+    const answers=['Цель','Опыт','Нет','Нет',formatLabels[0],c.dir];let index=0;
     c.client.setRequestHandler(ElicitRequestSchema,async request=>{
-      assert.doesNotMatch(request.params.message,/Сколько часов в неделю|Какой желаемый срок/);
+      assert.doesNotMatch(request.params.message,/Сколько часов в неделю|Какой желаемый срок|график обучения/i);
       return {action:'accept',content:{answer:answers[index++]}};
     });
     const start=await call(c.client,'roadmap_start');const result=await call(c.client,'roadmap_question',{sessionId:start.sessionId});
-    assert.equal(index,7);assert.equal(result.complete,true);assert.equal(result.answers.scheduleMode,'self-paced');
-    assert.equal(result.answers.hoursPerWeek,undefined);assert.equal(result.answers.deadline,undefined);
-    assert.equal(result.planning.calendarBound,false);assert.equal(result.planning.hoursPerWeek,null);
+    assert.equal(index,6);assert.equal(result.complete,true);assert.equal(result.planning.mode,'effort-only');
+    assert.equal(result.planning.calendarBound,false);assert.equal(result.planning.hoursPerWeek,undefined);
   }finally{await c.close();}
 });
 
@@ -249,27 +246,20 @@ test('host-UI path validation returns an actionable error and preserves the pend
   }finally{await c.close();}
 });
 
-test('numeric validation uses the same visible feedback and clears it for the next question',async()=>{
-  const c=await connected({elicitation:{form:{}}});try{
-    const knownInputs=fixture(c.dir).inputs;knownInputs.scheduleMode='weekly';
-    delete knownInputs.hoursPerWeek;delete knownInputs.outputDirectory;
-    let count=0;
-    c.client.setRequestHandler(ElicitRequestSchema,async request=>{
-      count++;
-      if(count===2){
-        assert.match(request.params.message,/^Ответ не принят/);
-        assert.match(request.params.requestedSchema.properties.answer.title,/^Ошибка ввода:.*Часы в неделю/);
-        assert.match(request.params.requestedSchema.properties.answer.description,/больше 0 и не больше 168/);
-      }
-      if(count===3){
-        assert.doesNotMatch(request.params.message,/Ответ не принят/);
-        assert.doesNotMatch(request.params.requestedSchema.properties.answer.title,/Ошибка ввода/);
-        assert.match(request.params.requestedSchema.properties.answer.title,/Куда сохранить/);
-      }
-      return {action:'accept',content:{answer:count===1?0:count===2?4:c.dir}};
-    });
-    const start=await call(c.client,'roadmap_start',{knownInputs});
-    const result=await call(c.client,'roadmap_question',{sessionId:start.sessionId});
-    assert.equal(count,3);assert.equal(result.complete,true);assert.equal(result.answers.hoursPerWeek,4);assert.equal(result.answers.outputDirectory,c.dir);
+test('retired schedule fields are rejected by MCP writes while synthetic legacy sessions remain read-only on load',async()=>{
+  const c=await connected();try{
+    for(const key of ['scheduleMode','hoursPerWeek','deadline']){
+      const rejected=await c.client.callTool({name:'roadmap_start',arguments:{knownInputs:{[key]:'legacy'}}});
+      assert.equal(rejected.isError,true);assert.match(rejected.content[0].text,new RegExp(`Неизвестное поле: ${key}`));
+    }
+    const start=await call(c.client,'roadmap_start',{knownInputs:fixture(c.dir).inputs});
+    const file=path.join(c.dir,`${start.sessionId}.json`),legacy=JSON.parse(await fs.readFile(file,'utf8'));
+    legacy.answers.scheduleMode='weekly';legacy.answers.hoursPerWeek=6;legacy.answers.deadline='LEGACY-DEADLINE';
+    await fs.writeFile(file,JSON.stringify(legacy));const before=await fs.readFile(file,'utf8');
+    assert.equal((await call(c.client,'roadmap_get',{sessionId:start.sessionId})).planning.mode,'effort-only');
+    assert.equal(await fs.readFile(file,'utf8'),before);
+    const rejected=await c.client.callTool({name:'roadmap_answer',arguments:{sessionId:start.sessionId,key:'deadline',value:'new'}});
+    assert.equal(rejected.isError,true);assert.match(rejected.content[0].text,/Неизвестное поле: deadline/);
+    assert.equal(JSON.parse(await fs.readFile(file,'utf8')).answers.hoursPerWeek,6);
   }finally{await c.close();}
 });

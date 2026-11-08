@@ -7,7 +7,7 @@ import AdmZip from 'adm-zip';
 import { renderSite, renderPrint } from './render.js';
 import { launchBrowser } from './browser.js';
 import { contentHash, validateRoadmap, evaluateReview } from './validate.js';
-import { nextQuestion, deliveryFor } from './questions.js';
+import { nextQuestion, deliveryFor,planningFor } from './questions.js';
 import { writeJson } from './files.js';
 import { defaultDataDirectory } from './data-directory.js';
 import { exportBasename } from './export-name.js';
@@ -152,7 +152,7 @@ export async function buildRoadmap(inputState,{ visualAudit=true,diagnosticsRoot
     }
     const output=published.directory;
     const artifacts={...(wantHtml?{siteDirectory:output,htmlArchive:published.zipPath,siteEntryPoint:path.join(output,'index.html')}:{}),...(wantPdf?{pdf:path.join(output,'roadmap.pdf')}:{})};
-    const manifest={contentHash:hash,schemaVersion:'1.0',format:answers.format,delivery:deliveryFor(answers.format),artifacts,
+    const manifest={contentHash:hash,schemaVersion:'1.0',format:answers.format,delivery:deliveryFor(answers.format),planning:planningFor(answers),artifacts,
       diagnostics:{directory:diagnosticsDirectory,roadmap:path.join(diagnosticsDirectory,'roadmap.json'),manifest:path.join(diagnosticsDirectory,'manifest.json'),...(visualAudit&&wantHtml?{screenshotsDirectory:path.join(diagnosticsDirectory,'qa')}:{})},preliminary,
       evaluation:evaluation?{total:evaluation.total,passed:evaluation.passed,blockers:evaluation.blockers}:null,validation,audit,pdfCreated:wantPdf,
       artifactChecks,visualReview:'pending-agent-review',createdAt:date.toISOString()};
