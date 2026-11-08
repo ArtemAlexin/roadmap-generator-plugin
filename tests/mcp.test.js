@@ -23,6 +23,32 @@ const call=async(client,name,args={})=>{
   if(result.isError)throw new Error(result.content[0].text);
   return JSON.parse(result.content[0].text);
 };
+
+test('host intake offers predefined options only for schedule and format',async()=>{
+  const c=await connected();try{
+    const start=await call(c.client,'roadmap_start');
+    const fields=[
+      ['goal','text','Авторская цель'],['level','text','Авторский опыт'],
+      ['scheduleMode','choice',scheduleLabels[1]],['hoursPerWeek','number',4],
+      ['deadline','text','Без срока'],['constraints','text','Нет'],['priorities','text','Нет'],
+      ['format','choice',formatLabels[0]],['outputDirectory','text',c.dir],
+    ];
+    for(const [key,inputMode,value] of fields){
+      const result=await call(c.client,'roadmap_question',{sessionId:start.sessionId});
+      assert.equal(result.question.key,key);assert.equal(result.inputMode,inputMode);
+      if(inputMode==='choice'){
+        assert.deepEqual(result.question.labels,key==='scheduleMode'?scheduleLabels:formatLabels);
+        assert.match(result.instruction,/only the supplied/);
+      }else{
+        assert.equal(result.question.choices,undefined);
+        assert.match(result.instruction,/Do not invent/);
+        assert.match(result.instruction,/free[- ](?:text|numeric)/);
+      }
+      await call(c.client,'roadmap_answer',{sessionId:start.sessionId,key,value});
+    }
+    assert.equal((await call(c.client,'roadmap_question',{sessionId:start.sessionId})).complete,true);
+  }finally{await c.close();}
+});
 test('build persistence failure reports artifacts and diagnostics already published',async t=>{
   const dir=await fs.mkdtemp(path.join(os.tmpdir(),'roadmap-persist-test-'));t.after(()=>fs.rm(dir,{recursive:true,force:true}));
   const store=new Store(dir),session=await store.create();
@@ -77,6 +103,9 @@ test('one native intake call asks all weekly-plan questions interactively and de
     let index=0;
     c.client.setRequestHandler(ElicitRequestSchema,async request=>{
       assert.equal(Object.keys(request.params.requestedSchema.properties).length,1);
+      const field=request.params.requestedSchema.properties.answer;
+      if(index===2)assert.deepEqual(field.enum,scheduleLabels);
+      else if(index!==7){assert.equal(field.enum,undefined);assert.equal(field.type,index===3?'number':'string');}
       if(index===7){
         assert.deepEqual(request.params.requestedSchema.properties.answer.enum,formatLabels);
         assert.match(request.params.message,/ZIP/);assert.match(request.params.message,/отдельными страницами/);

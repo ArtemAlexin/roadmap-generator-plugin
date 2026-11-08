@@ -33,7 +33,7 @@ export async function buildAndPersist(store,sessionId,build=buildRoadmap){
 export function createServer({dataDirectory=defaultDataDirectory()}={}){
   const store=new Store(dataDirectory);
   const activeIntakes=new Map();
-  const server=new McpServer({name:'roadmap-generator',version:'0.0.7'},{instructions:'Use roadmap_guidance(workflow) for roadmap requests. Every intake question must use interactive input, not just the first. Call roadmap_question after roadmap_start and after every host-UI answer. Native forms continue automatically one at a time until intake completes or the user cancels. If MCP forms are unsupported, use the host question UI for every question; plain chat is only a last resort when the host has no interactive UI. HTML means the interactive multi-page local website in a ZIP, never one standalone HTML file. This server supplies state and rendering, not an LLM or a browser research service. Use host research tools and a separate reviewer. Never fabricate verification.'});
+  const server=new McpServer({name:'roadmap-generator',version:'0.0.7'},{instructions:'Use roadmap_guidance(workflow) for roadmap requests. Every intake question must use interactive input, not just the first. Call roadmap_question after roadmap_start and after every host-UI answer. Native forms continue automatically one at a time until intake completes or the user cancels. If MCP forms are unsupported, follow the host inputMode and instructions returned by roadmap_question; plain chat is only a last resort when no suitable interactive input is available. HTML means the interactive multi-page local website in a ZIP, never one standalone HTML file. This server supplies state and rendering, not an LLM or a browser research service. Use host research tools and a separate reviewer. Never fabricate verification.'});
   const reply=value=>({content:[{type:'text',text:JSON.stringify(value,null,2)}]});
   const register=(name,description,inputSchema,handler)=>server.registerTool(name,{description,inputSchema,annotations:{readOnlyHint:['roadmap_guidance','roadmap_schema','roadmap_get','roadmap_validate'].includes(name),destructiveHint:false,openWorldHint:false}},async args=>{
     try{return reply(await handler(args));}catch(e){return {isError:true,content:[{type:'text',text:e.message}]};}
@@ -46,9 +46,15 @@ export function createServer({dataDirectory=defaultDataDirectory()}={}){
     if(!question)return {complete:true,...store.summary(state)};
     const elicitation=server.server.getClientCapabilities()?.elicitation;
     const supportsForm=elicitation && (Object.keys(elicitation).length===0 || elicitation.form!==undefined);
-    if(!interactive||!supportsForm)return {question,mode:'host-ui',
-      instruction:'Use the host interactive question/input tool for THIS question and EVERY following question, with the supplied labels/choices and custom input where applicable. Lack of MCP elicitation does not mean lack of host UI. Wait for the actual answer, save through roadmap_answer, then call roadmap_question again. Do not continue by writing the next question in chat. Only if the host has no interactive input tool at all, explain the limitation and use chat.',
-      afterAnswer:{tool:'roadmap_answer',then:'roadmap_question',sessionId}};
+    if(!interactive||!supportsForm){
+      const inputMode=question.choices?'choice':question.type==='number'?'number':'text';
+      const inputInstruction=inputMode==='choice'
+        ?'Offer only the supplied question.labels/question.choices as selectable options.'
+        :`Collect ${inputMode==='number'?'free-numeric':'free-text'} input with no preset answer options. Do not invent answer options, examples as selectable answers, or a placeholder choice just to open custom input.`;
+      return {question,mode:'host-ui',inputMode,
+        instruction:`Use the host interactive question/input tool for THIS question and EVERY following question. ${inputInstruction} Include the supplied hint. Lack of MCP elicitation does not mean lack of host UI. If a host tool requires nonempty choices for an open question, use another free-input form; only if no suitable interactive input is available, explain the limitation and use chat for this field. Wait for the actual answer, save through roadmap_answer, then call roadmap_question again.`,
+        afterAnswer:{tool:'roadmap_answer',then:'roadmap_question',sessionId}};
+    }
     let validationError='';
     while(question){
       const schema=question.type==='number'?{type:'number',minimum:0,maximum:168}:question.choices?{type:'string',enum:question.labels||question.choices}:{type:'string',minLength:1};

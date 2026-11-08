@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Keep open intake questions as free text or numeric input; offer only the predefined schedule and format choices. Host-UI responses now specify inputMode and instructions for clients whose question widget requires options.
+
 ## 0.0.7
 
 - Share overlapping native intake calls within a server session to prevent duplicate question forms; clear the active intake after completion, cancellation or failure.
