@@ -92,6 +92,64 @@ test('one native intake call asks all weekly-plan questions interactively and de
   }finally{await c.close();}
 });
 
+test('overlapping native intake calls share one form sequence for the same session',async()=>{
+  const c=await connected({elicitation:{form:{}}});try{
+    const knownInputs=fixture(c.dir).inputs;
+    delete knownInputs.level;delete knownInputs.constraints;
+    const messages=[];
+    c.client.setRequestHandler(ElicitRequestSchema,async request=>{
+      messages.push(request.params.message);
+      return {action:'accept',content:{answer:'Ответ пользователя'}};
+    });
+    const start=await call(c.client,'roadmap_start',{knownInputs});
+    const results=await Promise.all([
+      call(c.client,'roadmap_question',{sessionId:start.sessionId}),
+      call(c.client,'roadmap_question',{sessionId:start.sessionId}),
+    ]);
+    assert.equal(messages.length,2,'each of the two unanswered questions must have exactly one form');
+    assert.equal(new Set(messages).size,2,'the same question must not be displayed twice');
+    for(const result of results){assert.equal(result.complete,true);assert.equal(result.answers.level,'Ответ пользователя');assert.equal(result.answers.constraints,'Ответ пользователя');}
+  }finally{await c.close();}
+});
+
+test('shared native intake cancellation permits a later resume without replaying the cancellation',async()=>{
+  const c=await connected({elicitation:{form:{}}});try{
+    const knownInputs=fixture(c.dir).inputs;delete knownInputs.level;
+    const start=await call(c.client,'roadmap_start',{knownInputs});
+    const shown=Promise.withResolvers(),release=Promise.withResolvers();let forms=0;
+    c.client.setRequestHandler(ElicitRequestSchema,async()=>{
+      forms++;shown.resolve();await release.promise;return {action:'cancel'};
+    });
+    const first=call(c.client,'roadmap_question',{sessionId:start.sessionId});
+    await shown.promise;
+    const second=call(c.client,'roadmap_question',{sessionId:start.sessionId});
+    // The ping round trip ensures the server received the second call before ending the first.
+    await c.client.ping();release.resolve();
+    const cancelled=await Promise.all([first,second]);
+    assert.equal(forms,1);
+    for(const result of cancelled){assert.equal(result.pending,true);assert.equal(result.question.key,'level');}
+    c.client.setRequestHandler(ElicitRequestSchema,async()=>{forms++;return {action:'accept',content:{answer:'Опыт после возобновления'}};});
+    const resumed=await call(c.client,'roadmap_question',{sessionId:start.sessionId});
+    assert.equal(forms,2);assert.equal(resumed.complete,true);assert.equal(resumed.answers.level,'Опыт после возобновления');
+  }finally{await c.close();}
+});
+
+test('native intake failure clears the active call and does not affect another session',async()=>{
+  const c=await connected({elicitation:{form:{}}});try{
+    const knownInputs=fixture(c.dir).inputs;delete knownInputs.level;
+    const first=await call(c.client,'roadmap_start',{knownInputs});
+    const second=await call(c.client,'roadmap_start',{knownInputs});
+    c.client.setRequestHandler(ElicitRequestSchema,async()=>{throw new Error('injected form failure');});
+    await assert.rejects(call(c.client,'roadmap_question',{sessionId:first.sessionId}),/injected form failure/);
+    let forms=0;
+    c.client.setRequestHandler(ElicitRequestSchema,async()=>{forms++;return {action:'accept',content:{answer:'Опыт пользователя'}};});
+    const results=await Promise.all([first,second].map(session=>call(c.client,'roadmap_question',{sessionId:session.sessionId})));
+    assert.equal(forms,2);
+    assert.deepEqual(results.map(result=>result.sessionId),[first.sessionId,second.sessionId]);
+    for(const result of results){assert.equal(result.complete,true);assert.equal(result.answers.level,'Опыт пользователя');}
+  }finally{await c.close();}
+});
+
 test('native intake cancelled after first answer resumes forms for the remaining questions',async()=>{
   const c=await connected({elicitation:{form:{}}});try{
     let count=0;
@@ -121,14 +179,68 @@ test('self-paced intake skips weekly hours and deadline but completes every othe
   }finally{await c.close();}
 });
 
-test('invalid native answer is retried in a form and does not switch to chat',async()=>{
+test('invalid native path displays an actionable error before retrying and is not saved',async()=>{
   const c=await connected({elicitation:{form:{}}});try{
     const knownInputs=fixture(c.dir).inputs;delete knownInputs.outputDirectory;let count=0;
+    const example=process.platform==='win32'?'C:\\Roadmaps':'/home/user/roadmaps';
+    let sessionId;
     c.client.setRequestHandler(ElicitRequestSchema,async request=>{
-      count++;if(count===2)assert.match(request.params.message,/абсолютный путь/);
+      count++;
+      if(count===1)assert.doesNotMatch(request.params.requestedSchema.properties.answer.title,/Ошибка ввода/);
+      if(count===2){
+        assert.match(request.params.message,/^Ответ не принят/);
+        assert.match(request.params.message,/relative-folder/);
+        assert.match(request.params.message,/абсолютный путь/);
+        assert.ok(request.params.message.includes(example));
+        assert.match(request.params.requestedSchema.properties.answer.title,/^Ошибка ввода:/);
+        assert.match(request.params.requestedSchema.properties.answer.description,/абсолютный путь/);
+        assert.match(request.params.message,/отмен/i);
+        assert.equal((await call(c.client,'roadmap_get',{sessionId})).answers.outputDirectory,undefined);
+      }
       return {action:'accept',content:{answer:count===1?'relative-folder':c.dir}};
     });
-    const start=await call(c.client,'roadmap_start',{knownInputs});const result=await call(c.client,'roadmap_question',{sessionId:start.sessionId});
+    const start=await call(c.client,'roadmap_start',{knownInputs});sessionId=start.sessionId;
+    const result=await call(c.client,'roadmap_question',{sessionId});
     assert.equal(count,2);assert.equal(result.complete,true);assert.equal(result.answers.outputDirectory,c.dir);
+  }finally{await c.close();}
+});
+
+test('host-UI path validation returns an actionable error and preserves the pending question',async()=>{
+  const c=await connected();try{
+    const knownInputs=fixture(c.dir).inputs;delete knownInputs.outputDirectory;
+    const start=await call(c.client,'roadmap_start',{knownInputs});
+    const rejected=await c.client.callTool({name:'roadmap_answer',arguments:{sessionId:start.sessionId,key:'outputDirectory',value:'relative-folder'}});
+    assert.equal(rejected.isError,true);
+    assert.match(rejected.content[0].text,/relative-folder/);
+    assert.match(rejected.content[0].text,/абсолютный путь/);
+    assert.match(rejected.content[0].text,/например/);
+    const pending=await call(c.client,'roadmap_question',{sessionId:start.sessionId});
+    assert.equal(pending.mode,'host-ui');assert.equal(pending.question.key,'outputDirectory');
+    assert.equal((await call(c.client,'roadmap_get',{sessionId:start.sessionId})).answers.outputDirectory,undefined);
+  }finally{await c.close();}
+});
+
+test('numeric validation uses the same visible feedback and clears it for the next question',async()=>{
+  const c=await connected({elicitation:{form:{}}});try{
+    const knownInputs=fixture(c.dir).inputs;knownInputs.scheduleMode='weekly';
+    delete knownInputs.hoursPerWeek;delete knownInputs.outputDirectory;
+    let count=0;
+    c.client.setRequestHandler(ElicitRequestSchema,async request=>{
+      count++;
+      if(count===2){
+        assert.match(request.params.message,/^Ответ не принят/);
+        assert.match(request.params.requestedSchema.properties.answer.title,/^Ошибка ввода:.*Часы в неделю/);
+        assert.match(request.params.requestedSchema.properties.answer.description,/больше 0 и не больше 168/);
+      }
+      if(count===3){
+        assert.doesNotMatch(request.params.message,/Ответ не принят/);
+        assert.doesNotMatch(request.params.requestedSchema.properties.answer.title,/Ошибка ввода/);
+        assert.match(request.params.requestedSchema.properties.answer.title,/Куда сохранить/);
+      }
+      return {action:'accept',content:{answer:count===1?0:count===2?4:c.dir}};
+    });
+    const start=await call(c.client,'roadmap_start',{knownInputs});
+    const result=await call(c.client,'roadmap_question',{sessionId:start.sessionId});
+    assert.equal(count,3);assert.equal(result.complete,true);assert.equal(result.answers.hoursPerWeek,4);assert.equal(result.answers.outputDirectory,c.dir);
   }finally{await c.close();}
 });

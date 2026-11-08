@@ -32,7 +32,8 @@ export async function buildAndPersist(store,sessionId,build=buildRoadmap){
 }
 export function createServer({dataDirectory=defaultDataDirectory()}={}){
   const store=new Store(dataDirectory);
-  const server=new McpServer({name:'roadmap-generator',version:'0.0.6'},{instructions:'Use roadmap_guidance(workflow) for roadmap requests. Every intake question must use interactive input, not just the first. Call roadmap_question after roadmap_start and after every host-UI answer. Native forms continue automatically one at a time until intake completes or the user cancels. If MCP forms are unsupported, use the host question UI for every question; plain chat is only a last resort when the host has no interactive UI. HTML means the interactive multi-page local website in a ZIP, never one standalone HTML file. This server supplies state and rendering, not an LLM or a browser research service. Use host research tools and a separate reviewer. Never fabricate verification.'});
+  const activeIntakes=new Map();
+  const server=new McpServer({name:'roadmap-generator',version:'0.0.7'},{instructions:'Use roadmap_guidance(workflow) for roadmap requests. Every intake question must use interactive input, not just the first. Call roadmap_question after roadmap_start and after every host-UI answer. Native forms continue automatically one at a time until intake completes or the user cancels. If MCP forms are unsupported, use the host question UI for every question; plain chat is only a last resort when the host has no interactive UI. HTML means the interactive multi-page local website in a ZIP, never one standalone HTML file. This server supplies state and rendering, not an LLM or a browser research service. Use host research tools and a separate reviewer. Never fabricate verification.'});
   const reply=value=>({content:[{type:'text',text:JSON.stringify(value,null,2)}]});
   const register=(name,description,inputSchema,handler)=>server.registerTool(name,{description,inputSchema,annotations:{readOnlyHint:['roadmap_guidance','roadmap_schema','roadmap_get','roadmap_validate'].includes(name),destructiveHint:false,openWorldHint:false}},async args=>{
     try{return reply(await handler(args));}catch(e){return {isError:true,content:[{type:'text',text:e.message}]};}
@@ -40,7 +41,7 @@ export function createServer({dataDirectory=defaultDataDirectory()}={}){
   register('roadmap_guidance','Load only the instructions for the current phase; workflow first.',{phase:z.enum(Object.keys(guidanceFiles))},async({phase})=>({phase,text:await fs.readFile(path.join(root,'skills/roadmap',guidanceFiles[phase]),'utf8')}));
   register('roadmap_schema','Get JSON Schema for one object; avoid loading the entire schema unless needed.',{section:z.enum(['roadmap','stage','source','competence','scenario','evidence','coverage','about','report','review'])},async({section})=>schemas[section==='roadmap'?'roadmapSchema':`${section}Schema`]);
   register('roadmap_start','Start a roadmap. Seed only user-provided facts, preserving user text; omit unknown facts. For a user-requested free schedule seed scheduleMode=self-paced and omit weekly budget/deadline. Effort is still estimated in hours. Use scheduleMode=weekly only for a real weekly budget.',{knownInputs:z.record(z.union([z.string(),z.number()])).optional()},async({knownInputs})=>store.create(knownInputs));
-  register('roadmap_question','Continue interactive intake. Native MCP forms ask ALL remaining questions sequentially, one field/form at a time, until complete or cancelled. Without native forms (or interactive=false), return one question for the host question UI; call again after saving each answer. HTML is an interactive local website ZIP.',{sessionId:z.string(),interactive:z.boolean().default(true)},async({sessionId,interactive})=>{
+  const askQuestion=async({sessionId,interactive})=>{
     let state=await store.load(sessionId),question=nextQuestion(state.answers);
     if(!question)return {complete:true,...store.summary(state)};
     const elicitation=server.server.getClientCapabilities()?.elicitation;
@@ -51,7 +52,10 @@ export function createServer({dataDirectory=defaultDataDirectory()}={}){
     let validationError='';
     while(question){
       const schema=question.type==='number'?{type:'number',minimum:0,maximum:168}:question.choices?{type:'string',enum:question.labels||question.choices}:{type:'string',minLength:1};
-      const response=await server.server.elicitInput({mode:'form',message:[question.title,question.hint,validationError].filter(Boolean).join('\n'),requestedSchema:{type:'object',properties:{answer:{...schema,title:question.title}},required:['answer']}});
+      const feedback=validationError?`Ответ не принят. ${validationError} Исправьте ответ или отмените ввод.`:'';
+      const field={...schema,title:validationError?`Ошибка ввода: ${validationError}`:question.title};
+      if(validationError||question.hint)field.description=validationError||question.hint;
+      const response=await server.server.elicitInput({mode:'form',message:[feedback,question.title,question.hint].filter(Boolean).join('\n'),requestedSchema:{type:'object',properties:{answer:field},required:['answer']}});
       if(response.action!=='accept')return {sessionId,question,action:response.action,pending:true,complete:false,instruction:'Wait for the user to resume. Cancellation did not answer the pending question.'};
       let answer=response.content.answer;
       if(question.labels){const i=question.labels.indexOf(answer);if(i>=0)answer=question.choices[i];}
@@ -61,6 +65,16 @@ export function createServer({dataDirectory=defaultDataDirectory()}={}){
       state=await store.load(sessionId);question=nextQuestion(state.answers);
     }
     return {complete:true,...store.summary(state)};
+  };
+  register('roadmap_question','Continue interactive intake. Native MCP forms ask ALL remaining questions sequentially, one field/form at a time, until complete or cancelled. Overlapping calls for the same session share the active intake. Without native forms (or interactive=false), return one question for the host question UI; call again after saving each answer. HTML is an interactive local website ZIP.',{sessionId:z.string(),interactive:z.boolean().default(true)},async args=>{
+    if(!args.interactive)return askQuestion(args);
+    // Serializing answer writes alone still lets concurrent callers display duplicate forms.
+    const active=activeIntakes.get(args.sessionId);
+    if(active)return active;
+    const task=askQuestion(args);
+    activeIntakes.set(args.sessionId,task);
+    try{return await task;}
+    finally{if(activeIntakes.get(args.sessionId)===task)activeIntakes.delete(args.sessionId);}
   });
   register('roadmap_answer','Save the actual user answer; do not invent answers.',{sessionId:z.string(),key:z.string(),value:z.union([z.string(),z.number()])},async a=>store.answer(a.sessionId,a.key,a.value));
   register('roadmap_get','Read a summary, section or individual object. Prefer individual objects over all.',{sessionId:z.string(),section:z.string().optional(),itemId:z.string().optional()},async a=>store.get(a.sessionId,a.section,a.itemId));

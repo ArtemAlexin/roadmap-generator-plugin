@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.0.7
+
+- Share overlapping native intake calls within a server session to prevent duplicate question forms; clear the active intake after completion, cancellation or failure.
+- Show explicit invalid-input feedback in the form message, field title and description; include the rejected relative path and an OS-appropriate absolute-path example.
+- Add regression coverage for concurrent calls, cancellation/resume, failed forms, session isolation, invalid answers and feedback reset after correction.
+- The unresolved whitespace (#5) and editorial verification (#6) limitations from 0.0.6 remain unchanged.
+
 ## 0.0.6
 
 - Add full-roadmap clarity and content-preserving proofreading guidance for authors and reviewers.

@@ -55,7 +55,10 @@ export function validateAnswer(key, value) {
   if(key==='scheduleMode'&&/^(по часам в неделю|часы в неделю|weekly)$/i.test(value))value='weekly';
   if(key==='scheduleMode'&&!scheduleChoices.includes(value))throw new Error('Режим: self-paced или weekly.');
   if (key === 'format' && !['html', 'pdf', 'both'].includes(value)) throw new Error('Формат: html, pdf или both.');
-  if (key === 'outputDirectory' && !path.isAbsolute(value)) throw new Error('Укажите абсолютный путь к папке.');
+  if (key === 'outputDirectory' && !path.isAbsolute(value)) {
+    const example=process.platform==='win32'?'C:\\Roadmaps':'/home/user/roadmaps';
+    throw new Error(`Путь «${value}» не является абсолютным. Укажите абсолютный путь к папке, например «${example}», а не относительное имя папки.`);
+  }
   return value;
 }
 export function nextQuestion(answers) {
